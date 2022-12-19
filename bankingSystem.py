@@ -91,6 +91,21 @@ class bankingSystem(mesa.Model):
                             self.trustMatrix_accepted + self.concentrationParameter.sum(axis=1).reshape((self.N,1)))
         self.schedule = mesa.time.RandomActivation(self)
     
+        # create banks and put them in schedule
+        for i in range(self.num_agents):
+            a = Bank(i, self)
+            self.schedule.add(a)
+            a.portfolio = banksData["equity"][i]
+            a.equity = banksData["equity"][i]
+            
+        self.datacollector = mesa.DataCollector(
+            model_reporters={"Trust Matrix": "trustMatrix",},
+            agent_reporters={"Portfolio Value": "portfolio",
+                                "Lending": "lending",
+                                "Borrowing": "borrowing", 
+                                "Equity": "equity",
+                                "Default": "default"})
+        
     def updateTrustMatrix(self):
         for borrower, lender, _ in self.borrowingCollection:
             # update trust matrix with time decay 
@@ -99,19 +114,3 @@ class bankingSystem(mesa.Model):
             self.trustMatrix = self.trustMatrix / self.trustMatrix.sum(axis=1).reshape((self.N,1))
             # add time decay of trust matrix
             self.concentrationParameter = self.trustMatrix * 0.999
-     
-# create banks and put them in schedule
-for i in range(self.num_agents):
-    a = Bank(i, self)
-    self.schedule.add(a)
-    a.portfolio = banksData["equity"][i]
-    a.equity = banksData["equity"][i]
-    
-self.datacollector = mesa.DataCollector(
-    model_reporters={"Trust Matrix": "trustMatrix",},
-    agent_reporters={"Portfolio Value": "portfolio",
-                        "Lending": "lending",
-                        "Borrowing": "borrowing", 
-                        "Equity": "equity",
-                        "Default": "default"} 
-)
