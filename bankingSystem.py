@@ -1,6 +1,8 @@
 import mesa
 import numpy as np 
 import pandas as pd 
+from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
@@ -28,33 +30,32 @@ class Bank(mesa.Agent):
         self.model.trustMatrix = (self.model.trustMatrix_request + self.model.concentrationParameter) / (
         self.model.trustMatrix_accepted + self.model.concentrationParameter.sum(axis=1).reshape((self.model.num_agents, 1)))
     
-    # add time decay of trust matrix
-    def timeDecayOfTrustMatrix(self):
-        pass
     
     def borrowRequest(self):
-        if self.leverage < self.model.targetLeverageRatio:
-            # randomly choose a bank to borrow from the trust matrix
-            target = np.random.choice(self.model.num_agents, p=self.model.trustMatrix[self.unique_id])
-            # choose a borrowing amount equal to the equity capital
-            amount = self.equity
-            # bring out the target bank and let him decide whether to lend
-            self.other_agent = self.model.get_agent_by_id(target)
-            # if the lending decision is made, update the balance sheet
-            if self.other_agent.lendDecision(self, amount):
-                self.borrowingTarget.append(self.unique_id)
-                self.borrowingAmount.append(amount)
-                self.borrowing = np.sum(self.borrowingAmount)
-                self.portfolio = self.portfolio + amount
-                self.leverage = (self.portfolio + self.lending) / self.equity
-                self.model.borrowingCollection.append((self.unique_id, target, amount))
-            
+        for _ in range(self.model.num_borrowing):
+            if self.leverage < self.model.targetLeverageRatio:
+                # randomly choose a bank to borrow from the trust matrix
+                target = np.random.choice(self.model.N, p=self.model.trustMatrix[self.unique_id])
+                if target != self.unique_id:
+                    # choose a borrowing amount equal to the equity capital
+                    amount = self.equity
+                    # bring out the target bank and let him decide whether to lend
+                    self.other_agent = self.model.schedule.agents[target]
+                    # if the lending decision is made, update the balance sheet
+                    if self.other_agent.lendDecision(self, amount):
+                        self.borrowingTarget.append(self.unique_id)
+                        self.borrowingAmount.append(amount)
+                        self.borrowing = np.sum(self.borrowingAmount)
+                        self.portfolio = self.portfolio + amount
+                        self.leverage = (self.portfolio + self.lending) / self.equity
+                        self.model.borrowingCollection.append((self.unique_id, target, amount))
+                
 
     def lendDecision(self, borrowingBank, amount):
         # if the bank is solvent
         if not self.default: 
         # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
-            if self.portfolio/2.0 > amount:
+            if self.portfolio/2.0 > amount and np.random.rand() < 0.1:
                 self.lendingTarget.append(borrowingBank.unique_id)
                 self.lendingAmount.append(amount)
                 self.portfolio = self.portfolio - amount
@@ -65,34 +66,32 @@ class Bank(mesa.Agent):
                 return False
             
     
-
     def step(self):
         if not self.default:
-            self.updateBalanceSheet()
             self.borrowRequest()
-            self.lendDecision()
-            self.updateBalanceSheet()
     
 
 class bankingSystem(mesa.Model):
-    def __init__(self, banksFile, targetLeverageRatio):
+    def __init__(self, banksFile, targetLeverageRatio, num_borrowing, num_banks):
         # read in banks equity capital  
-        banksData = pd.read_csv(banksFile)
-        N = banksData.shape[0]
-        self.N = N
+        banksData = pd.read_csv(banksFile).iloc[:num_banks,:]
+        self.banks = banksData["bank"]
+        self.N = banksData.shape[0]
         self.targetLeverageRatio = targetLeverageRatio
+        self.num_borrowing = 1
         self.borrowingCollection = []
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
         # maybe we could introduce a time decay factor for trust latter 
         # all matrices are row index       
-        self.trustMatrix_accepted = np.zeros((N,N))
-        self.concentrationParameter = np.ones((N,N))
-        self.trustMatrix = (self.trustMatrix_request + self.concentrationParameter) / (
-                            self.trustMatrix_accepted + self.concentrationParameter.sum(axis=1).reshape((self.N,1)))
+        self.trustMatrix_accepted = np.zeros((self.N,self.N))
+        self.concentrationParameter = np.ones((self.N,self.N))
+        np.fill_diagonal(self.concentrationParameter, 0)
+        self.trustMatrix = self.trustMatrix_accepted + self.concentrationParameter
+        self.trustMatrix =self.trustMatrix / self.trustMatrix.sum(axis=1).reshape((self.N,1)) 
         self.schedule = mesa.time.RandomActivation(self)
     
         # create banks and put them in schedule
-        for i in range(self.num_agents):
+        for i in range(self.N):
             a = Bank(i, self)
             self.schedule.add(a)
             a.portfolio = banksData["equity"][i]
@@ -110,7 +109,12 @@ class bankingSystem(mesa.Model):
         for borrower, lender, _ in self.borrowingCollection:
             # update trust matrix with time decay 
             self.trustMatrix_accepted[borrower, lender] += 1
-            self.trustMatrix = (self.trustMatrix_accepted + self.concentrationParameter)
-            self.trustMatrix = self.trustMatrix / self.trustMatrix.sum(axis=1).reshape((self.N,1))
-            # add time decay of trust matrix
-            self.concentrationParameter = self.trustMatrix * 0.999
+        self.trustMatrix = self.trustMatrix_accepted + self.concentrationParameter
+        self.trustMatrix = self.trustMatrix / self.trustMatrix.sum(axis=1).reshape((self.N,1))
+        # add time decay of trust matrix
+        self.concentrationParameter = self.trustMatrix * (1-1e-10)
+
+    def step(self):
+        self.datacollector.collect(self)
+        self.schedule.step()
+        self.updateTrustMatrix()
