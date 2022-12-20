@@ -1,14 +1,12 @@
 import mesa
 import numpy as np 
 import pandas as pd 
-from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         # assets  
-        self.portfolio = 1
+        self.portfolio = 0
         self.lendingTarget = []
         self.lendingAmount = []
         self.lending = np.sum(self.lendingAmount)
@@ -17,13 +15,16 @@ class Bank(mesa.Agent):
         self.borrowingAmount = []
         self.borrowing = np.sum(self.borrowingAmount)
         # equity 
-        self.equity = 1
+        self.equity = 0
         # leverage ratio
-        self.leverage = (self.portfolio + self.lending) / self.equity
+        self.leverage = 0
         # if a bank is solvent
         self.default = False
     
-    
+    def updateBlanceSheet(self):
+        self.equity = self.portfolio + self.lending - self.borrowing
+        self.leverage = (self.portfolio + self.lending) / self.equity
+        
     def borrowRequest(self):
         for _ in range(self.model.num_borrowing):
             if self.leverage < self.model.targetLeverageRatio:
@@ -33,20 +34,20 @@ class Bank(mesa.Agent):
                     # choose a borrowing amount equal to the equity capital
                     amount = self.equity
                     # bring out the target bank and let him decide whether to lend
-                    self.other_agent = self.model.schedule.agents[target]
+                    other_agent = self.model.schedule.agents[target]
                     # if the lending decision is made, update the balance sheet
-                    if self.other_agent.lendDecision(self, amount):
-                        self.borrowingTarget.append(self.unique_id)
+                    if other_agent.lendDecision(self, amount):
+                        self.borrowingTarget.append(other_agent.unique_id)
                         self.borrowingAmount.append(amount)
                         self.borrowing = np.sum(self.borrowingAmount)
                         self.portfolio = self.portfolio + amount
-                        self.leverage = (self.portfolio + self.lending) / self.equity
+                        self.updateBlanceSheet()
                         self.model.borrowingCollection.append((self.unique_id, target, amount))
                 
 
     def lendDecision(self, borrowingBank, amount):
         # if the bank is solvent
-        if not self.default: 
+        if not self.default:
         # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
             if self.portfolio/2.0 > amount and np.random.rand() < 0.5:
                 self.lendingTarget.append(borrowingBank.unique_id)
@@ -58,14 +59,45 @@ class Bank(mesa.Agent):
             else:
                 return False
             
+    def payDebt(self):
+        # if the bank is solvent
+        if not self.default:
+            # calcualate how much debt to pay 20% of the total debt
+            numDebtToPay = len(self.borrowingTarget) // 5
+            if numDebtToPay >= 1:
+                debtToPayTarget = self.borrowingTarget[:numDebtToPay] 
+                debtToPayAmount = self.borrowingAmount[:numDebtToPay]
+                self.borrowingTarget = self.borrowingTarget[numDebtToPay:]
+                self.borrowingAmount = self.borrowingAmount[numDebtToPay:]
+                # changes in its own balance sheet 
+                self.portfolio = self.portfolio - np.sum(debtToPayAmount)*(1+self.model.fedRate)
+                self.borrowing = np.sum(self.borrowingAmount)
+                self.updateBlanceSheet()
+                for target, amount in zip(debtToPayTarget, debtToPayAmount):
+                    # changes in couter-party's balance sheet
+                    other_agent = self.model.schedule.agents[target]
+                    other_agent.portfolio = other_agent.portfolio + amount * (1+self.model.fedRate)
+                    debtIndex = list(zip(other_agent.lendingTarget, other_agent.lendingAmount)).index((self.unique_id, amount))
+                    # cancel debt in counter-party's balance sheet
+                    del other_agent.lendingTarget[debtIndex]
+                    del other_agent.lendingAmount[debtIndex]
+                    # update counter-party's leverage ratio
+                    other_agent.lending = np.sum(other_agent.lendingAmount)
+                    other_agent.updateBlanceSheet()
+                    
     
     def step(self):
         if not self.default:
             self.borrowRequest()
+            self.payDebt()
     
 
 class bankingSystem(mesa.Model):
     def __init__(self, banksFile, targetLeverageRatio, num_borrowing, num_banks):
+        # enable batch run
+        self.running = True
+        # interest rate
+        self.fedRate = 0.00
         # read in banks equity capital  
         banksData = pd.read_csv(banksFile).iloc[:num_banks,:]
         self.banks = banksData["bank"]
@@ -107,6 +139,8 @@ class bankingSystem(mesa.Model):
         self.trustMatrix = self.trustMatrix / self.trustMatrix.sum(axis=1, keepdims=True)
         # add time decay of trust matrix
         self.concentrationParameter = self.trustMatrix * (1-1e-10)
+        # clean the borrowing collection
+        self.borrowingCollection = []
 
     def step(self):
         self.datacollector.collect(self)
