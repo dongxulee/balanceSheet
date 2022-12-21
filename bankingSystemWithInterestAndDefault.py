@@ -165,7 +165,7 @@ class bankingSystem(mesa.Model):
             borrowerIndex = borrowingCollection[:,0].astype(int)
             lenderIndex = borrowingCollection[:,1].astype(int)
             # add time decay of concentration parameter
-            self.concentrationParameter = self.concentrationParameter
+            self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
             # update trust matrix 
             self.concentrationParameter[borrowerIndex, lenderIndex] += 1
             self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
