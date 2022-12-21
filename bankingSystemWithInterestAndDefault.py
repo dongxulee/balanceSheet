@@ -116,13 +116,14 @@ class Bank(mesa.Agent):
     
 
 class bankingSystem(mesa.Model):
-    def __init__(self, banksFile, targetLeverageRatio, num_borrowing, num_banks, debtClearingRate, concentrationParameter = None):
+    def __init__(self, banksFile, targetLeverageRatio, num_borrowing, num_banks, 
+                 debtClearingRate, concentrationParameter = None, fedRate = 0.00, portfolioReturnRate = 0.00):
         # enable batch run
         self.running = True
         # interest rate
-        self.fedRate = 0.00
+        self.fedRate = fedRate
         # portfolio return rate
-        self.portfolioReturnRate = 0.00
+        self.portfolioReturnRate = portfolioReturnRate
         # debt clearing rate
         self.debtClearingRate = debtClearingRate
         # read in banks equity capital  
