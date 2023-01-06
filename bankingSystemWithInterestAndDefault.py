@@ -142,7 +142,7 @@ class bankingSystem(mesa.Model):
             
     def clearingDebt(self):
         # Returns the new portfolio value after clearing debt
-        A, e, insolventBanks = eisenbergNoe(self.L, self.e, self.alpha, self.beta)
+        A, e, insolventBanks = eisenbergNoe(self.L*(1+self.fedRate), self.e, self.alpha, self.beta)
         self.e = e
         self.L = np.zeros((self.N,self.N))
         if len(insolventBanks) > 0:
