@@ -39,7 +39,7 @@ class Bank(mesa.Agent):
                     self.model.e[self.unique_id] = self.portfolio
                     self.borrowing += amount
                     self.updateBlanceSheet()
-                    self.model.borrowingCollection.append([self.unique_id, target, amount])
+                    self.model.concentrationParameter[self.unique_id, target] += 1.
                 
     # reinforcement learning update later. 
     def lendDecision(self, borrowingBank, amount):
@@ -102,7 +102,6 @@ class bankingSystem(mesa.Model):
         self.N = num_banks
         self.targetLeverageRatio = targetLeverageRatio
         self.num_borrowing = num_borrowing
-        self.borrowingCollection = []
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
         # we also introduce a time decay factor for trust       
         if concentrationParameter is None:
@@ -114,7 +113,7 @@ class bankingSystem(mesa.Model):
         # liability matrix 
         self.L = np.zeros((self.N,self.N))
         # asset matrix
-        self.e = np.zeros((self.N,1))
+        self.e = banksData["equity"].values.reshape(self.N,1)
         # create a schedule for banks
         self.schedule = mesa.time.RandomActivation(self)
     
@@ -137,21 +136,13 @@ class bankingSystem(mesa.Model):
                                 "Leverage": "leverage"})
         
     def updateTrustMatrix(self):
-        if len(self.borrowingCollection) > 0:
-            borrowingCollection = np.array(self.borrowingCollection)
-            borrowerIndex = borrowingCollection[:,0].astype(int)
-            lenderIndex = borrowingCollection[:,1].astype(int)
-            # add time decay of concentration parameter
-            self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
-            # update trust matrix 
-            self.concentrationParameter[borrowerIndex, lenderIndex] += 1.
-            self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
-            # clean the borrowing collection
-            self.borrowingCollection = []
+        # add time decay of concentration parameter
+        self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
+        self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
             
     def clearingDebt(self):
         # Returns the new portfolio value after clearing debt
-        _, e, insolventBanks = eisenbergNoe(self.L, self.e, self.alpha, self.beta)
+        A, e, insolventBanks = eisenbergNoe(self.L, self.e, self.alpha, self.beta)
         self.e = e
         self.L = np.zeros((self.N,self.N))
         if len(insolventBanks) > 0:
@@ -159,8 +150,8 @@ class bankingSystem(mesa.Model):
         for agent in self.schedule.agents:
             agent.reset()
 
-    def step(self):
-        self.datacollector.collect(self)
+    def simulate(self):
         self.schedule.step()
         self.updateTrustMatrix()
+        self.datacollector.collect(self)
         self.clearingDebt()

@@ -17,8 +17,6 @@ model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv",
                  fedRate = 0.0, 
                  portfolioReturnRate = 0.0) 
                  
-#code.interact(local=locals())
-
 
 simulationSteps = 2
 for i in tqdm(range(simulationSteps)):
