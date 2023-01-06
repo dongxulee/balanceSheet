@@ -2,7 +2,6 @@ import mesa
 import numpy as np
 import pandas as pd
 from eisenbergNoe import eisenbergNoe
-import code
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
@@ -67,7 +66,7 @@ class Bank(mesa.Agent):
         self.equity = self.portfolio   
         # leverage ratio
         self.leverage = 1.0
-        if self.portfolio < 0.:
+        if self.portfolio == 0.:
             self.default = True
     
     def step(self):
@@ -85,12 +84,23 @@ class bankingSystem(mesa.Model):
                  beta = 0.99,
                  concentrationParameter = None, 
                  fedRate = 0., 
-                 portfolioReturnRate = 0.):
+                 portfolioReturnRate = 0., 
+                 liquidityShockNum = 0,
+                 shockSize = 0.0,
+                 shockDuration=[-1,-1]):
         
+        # time
+        self.time = 0
         # interest rate
         self.fedRate = fedRate
         # portfolio return rate
         self.portfolioReturnRate = portfolioReturnRate
+        # number of liquidity shocks
+        self.liquidityShockNum = liquidityShockNum 
+        # size of the shock
+        self.shockSize = shockSize
+        # time of the shock
+        self.shockDuration = shockDuration
         # asset recovery rate 
         self.alpha = alpha
         # interbank loan recovery rate
@@ -149,9 +159,21 @@ class bankingSystem(mesa.Model):
             self.concentrationParameter[:,insolventBanks] = 0
         for agent in self.schedule.agents:
             agent.reset()
+            
+    def liquidityShock(self):
+        # liquidity shock to banks portfolio
+        if self.time >= self.shockDuration[0] and self.time <= self.shockDuration[1]:
+            if self.liquidityShockNum > 0:
+                for _ in range(self.liquidityShockNum):
+                    # randomly choose a bank to be insolvent
+                    exposedBank = np.random.choice(self.N)
+                    # set the bank's equity to zero
+                    self.e[exposedBank] *= (1-self.shockSize)
 
     def simulate(self):
         self.schedule.step()
+        self.liquidityShock()
         self.updateTrustMatrix()
         self.datacollector.collect(self)
         self.clearingDebt()
+        self.time += 1
