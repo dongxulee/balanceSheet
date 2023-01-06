@@ -2,19 +2,20 @@ import mesa
 import numpy as np
 import pandas as pd
 from eisenbergNoe import eisenbergNoe
+import code
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         # assets
-        self.portfolio = 0        # initialize when creating the bank, change in borrowing and lending
-        self.lending = 0          # update in updateBlanceSheet()
+        self.portfolio = 0.        # initialize when creating the bank, change in borrowing and lending
+        self.lending = 0.          # update in updateBlanceSheet()
         # liabilities
-        self.borrowing = 0        # update in updateBlanceSheet()
+        self.borrowing = 0.        # update in updateBlanceSheet()
         # equity
-        self.equity = 0           # initialize when creating the bank, update in updateBlanceSheet()
+        self.equity = 0.           # initialize when creating the bank, update in updateBlanceSheet()
         # leverage ratio
-        self.leverage = 0         # update in updateBlanceSheet()
+        self.leverage = 0.         # update in updateBlanceSheet()
         # if a bank is solvent
         self.default = False      # change at clearingDebt()
     
@@ -58,15 +59,15 @@ class Bank(mesa.Agent):
         self.updateBlanceSheet()
     
     def reset(self):
-        self.portfolio = self.model.e[self.unique_id]
-        self.lending = 0    
+        self.portfolio = self.model.e[self.unique_id][0]
+        self.lending = 0.    
         # liabilities
-        self.borrowing = 0      
+        self.borrowing = 0.      
         # equity
         self.equity = self.portfolio   
         # leverage ratio
-        self.leverage = 1
-        if self.portfolio < 0:
+        self.leverage = 1.0
+        if self.portfolio < 0.:
             self.default = True
     
     def step(self):
@@ -83,8 +84,8 @@ class bankingSystem(mesa.Model):
                  alpha = 0.99,
                  beta = 0.99,
                  concentrationParameter = None, 
-                 fedRate = 0.00, 
-                 portfolioReturnRate = 0.00):
+                 fedRate = 0., 
+                 portfolioReturnRate = 0.):
         
         # interest rate
         self.fedRate = fedRate
@@ -106,7 +107,7 @@ class bankingSystem(mesa.Model):
         # we also introduce a time decay factor for trust       
         if concentrationParameter is None:
             self.concentrationParameter = np.ones((self.N,self.N))
-            np.fill_diagonal(self.concentrationParameter, 0)
+            np.fill_diagonal(self.concentrationParameter, 0.)
         else:
             self.concentrationParameter = concentrationParameter
         self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
@@ -125,7 +126,9 @@ class bankingSystem(mesa.Model):
             self.schedule.add(a)
             
         self.datacollector = mesa.DataCollector(
-            model_reporters={"Trust Matrix": "trustMatrix"},
+            model_reporters={"Trust Matrix": "trustMatrix", 
+                             "Liability Matrix": "L",
+                             "Asset Matrix": "e"},
             agent_reporters={"PortfolioValue": "portfolio",
                                 "Lending": "lending",
                                 "Borrowing": "borrowing", 
@@ -141,7 +144,7 @@ class bankingSystem(mesa.Model):
             # add time decay of concentration parameter
             self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
             # update trust matrix 
-            self.concentrationParameter[borrowerIndex, lenderIndex] += 1
+            self.concentrationParameter[borrowerIndex, lenderIndex] += 1.
             self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
             # clean the borrowing collection
             self.borrowingCollection = []
@@ -159,5 +162,5 @@ class bankingSystem(mesa.Model):
     def step(self):
         self.datacollector.collect(self)
         self.schedule.step()
-        self.clearingDebt()
         self.updateTrustMatrix()
+        self.clearingDebt()
