@@ -44,7 +44,7 @@ class Bank(mesa.Agent):
     def lendDecision(self, borrowingBank, amount):
         # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
         # borrowingBank's information could be access through borrowingBank 
-        if self.portfolio/2.0 > amount and np.random.rand() < 0.5:
+        if self.portfolio * (1-self.model.capitalReserve) > amount and np.random.rand() < 0.5:
             self.portfolio -= amount
             self.model.e[self.unique_id] = self.portfolio
             self.lending += amount
@@ -78,6 +78,7 @@ class Bank(mesa.Agent):
 class bankingSystem(mesa.Model):
     def __init__(self, banksFile, 
                  targetLeverageRatio, 
+                 capitalReserve,
                  num_borrowing,
                  sizeOfBorrowing,
                  num_banks, 
@@ -110,6 +111,7 @@ class bankingSystem(mesa.Model):
         self.banks = banksData["bank"]
         self.N = num_banks
         self.targetLeverageRatio = targetLeverageRatio
+        self.capitalReserve = capitalReserve
         self.num_borrowing = num_borrowing
         self.sizeOfBorrowing = sizeOfBorrowing
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
