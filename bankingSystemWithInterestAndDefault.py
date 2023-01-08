@@ -8,13 +8,13 @@ class Bank(mesa.Agent):
         super().__init__(unique_id, model)
         # assets
         self.portfolio = 0.        # initialize when creating the bank, change in borrowing and lending
-        self.lending = 0.          # update in updateBlanceSheet()
+        self.lending = 0.         
         # liabilities
-        self.borrowing = 0.        # update in updateBlanceSheet()
+        self.borrowing = 0.       
         # equity
         self.equity = 0.           # initialize when creating the bank, update in updateBlanceSheet()
         # leverage ratio
-        self.leverage = 0.         # update in updateBlanceSheet()
+        self.leverage = 0.        
         # if a bank is solvent
         self.default = False      # change at clearingDebt()
     
@@ -28,7 +28,7 @@ class Bank(mesa.Agent):
                 # randomly choose a bank to borrow from the trust matrix
                 target = np.random.choice(self.model.N, p=self.model.trustMatrix[self.unique_id])
                 # choose a borrowing amount equal to the equity capital
-                amount = self.equity
+                amount = self.equity * self.model.sizeOfBorrowing
                 # bring out the target bank and let him decide whether to lend
                 other_agent = self.model.schedule.agents[target]
                 # if the lending decision is made, update the balance sheet
@@ -78,7 +78,8 @@ class Bank(mesa.Agent):
 class bankingSystem(mesa.Model):
     def __init__(self, banksFile, 
                  targetLeverageRatio, 
-                 num_borrowing, 
+                 num_borrowing,
+                 sizeOfBorrowing,
                  num_banks, 
                  alpha = 0.99,
                  beta = 0.99,
@@ -89,8 +90,6 @@ class bankingSystem(mesa.Model):
                  shockSize = 0.0,
                  shockDuration=[-1,-1]):
         
-        # time
-        self.time = 0
         # interest rate
         self.fedRate = fedRate
         # portfolio return rate
@@ -112,6 +111,7 @@ class bankingSystem(mesa.Model):
         self.N = num_banks
         self.targetLeverageRatio = targetLeverageRatio
         self.num_borrowing = num_borrowing
+        self.sizeOfBorrowing = sizeOfBorrowing
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
         # we also introduce a time decay factor for trust       
         if concentrationParameter is None:
@@ -148,12 +148,13 @@ class bankingSystem(mesa.Model):
     def updateTrustMatrix(self):
         # add time decay of concentration parameter
         self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
-        self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
+        self.trustMatrix = self.concentrationParameter / (self.N - 1)
             
     def clearingDebt(self):
         # Returns the new portfolio value after clearing debt
-        A, e, insolventBanks = eisenbergNoe(self.L*(1+self.fedRate), self.e, self.alpha, self.beta)
+        _, e, insolventBanks = eisenbergNoe(self.L*(1+self.fedRate), self.e, self.alpha, self.beta)
         self.e = e
+        # reset the Liabilities matrix after clearing debt
         self.L = np.zeros((self.N,self.N))
         if len(insolventBanks) > 0:
             self.concentrationParameter[:,insolventBanks] = 0
@@ -162,7 +163,7 @@ class bankingSystem(mesa.Model):
             
     def liquidityShock(self):
         # liquidity shock to banks portfolio
-        if self.time >= self.shockDuration[0] and self.time <= self.shockDuration[1]:
+        if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
             if self.liquidityShockNum > 0:
                 for _ in range(self.liquidityShockNum):
                     # randomly choose a bank to be insolvent
@@ -176,4 +177,3 @@ class bankingSystem(mesa.Model):
         self.updateTrustMatrix()
         self.datacollector.collect(self)
         self.clearingDebt()
-        self.time += 1

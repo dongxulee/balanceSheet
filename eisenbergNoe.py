@@ -10,7 +10,9 @@ def eisenbergNoe(L, e, alpha, beta):
             alpha: recovery rate on asset 
             beta: recovery rate on interbank asset 
         Output:
+            A: payments to creditors
             e_new: net asset values 
+            insolventBanks: indices of insolvent banks
     '''
     N = e.size 
     # asset matrices shapes 
