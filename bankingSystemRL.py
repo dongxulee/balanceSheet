@@ -2,6 +2,7 @@ import mesa
 import numpy as np
 import pandas as pd
 from eisenbergNoe import eisenbergNoe
+from policy import action
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
@@ -17,6 +18,8 @@ class Bank(mesa.Agent):
         self.leverage = 0.        
         # if a bank is solvent
         self.default = False      # change at clearingDebt()
+        # accumulated gradient 
+        self.gradient = np.zeros(self.model.w.size)
     
     def updateBlanceSheet(self):
         self.equity = self.portfolio + self.lending - self.borrowing
@@ -24,7 +27,7 @@ class Bank(mesa.Agent):
         
     def borrowRequest(self):
         for _ in range(self.model.num_borrowing):
-            if self.leverage < self.model.targetLeverageRatio:
+            if self.leverage < self.model.leverageRatio:
                 # randomly choose a bank to borrow from the trust matrix
                 target = np.random.choice(self.model.N, p=self.model.trustMatrix[self.unique_id])
                 # choose a borrowing amount equal to the equity capital
@@ -32,29 +35,31 @@ class Bank(mesa.Agent):
                 # bring out the target bank and let him decide whether to lend
                 other_agent = self.model.schedule.agents[target]
                 # if the lending decision is made, update the balance sheet
-                if other_agent.lendDecision(self, amount):
-                    self.model.L[self.unique_id, target] += amount
-                    self.portfolio += amount
-                    self.model.e[self.unique_id] = self.portfolio
-                    self.borrowing += amount
-                    self.updateBlanceSheet()
-                    self.model.concentrationParameter[self.unique_id, target] += 1.
+                if other_agent.portfolio * (1-self.model.capitalReserve) > amount:
+                    # lending ratio is based on the policy function
+                    information = np.array([other_agent.lending/other_agent.portfolio, other_agent.borrowing/other_agent.portfolio,
+                                            self.lending/self.portfolio, self.borrowing/self.portfolio, amount/other_agent.portfolio])
+                    a = action(information, self.model.w)
+                    self.gradient += (a - np.dot(self.model.w, information)) * information
+                    ratio = 1.0/(1.0+np.exp(-a))
+                    if ratio > 0.5:
+                        amount = amount * ratio
+                        # update borrowers balance sheet
+                        self.model.L[self.unique_id, target] += amount 
+                        self.portfolio += amount
+                        self.model.e[self.unique_id] = self.portfolio
+                        self.borrowing += amount
+                        self.updateBlanceSheet()
+                        self.model.concentrationParameter[self.unique_id, target] += 1.
+                        # update lenders balance sheet 
+                        other_agent.portfolio -= amount
+                        self.model.e[other_agent.unique_id] = other_agent.portfolio
+                        other_agent.lending += amount
+                        # asset and equity amount remain unchanged, leverage ratio also remains unchanged
                 
-    # reinforcement learning update later. 
-    def lendDecision(self, borrowingBank, amount):
-        # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
-        # borrowingBank's information could be access through borrowingBank 
-        if self.portfolio * (1-self.model.capitalReserve) > amount and np.random.rand() < 0.5:
-            self.portfolio -= amount
-            self.model.e[self.unique_id] = self.portfolio
-            self.lending += amount
-            # asset and equity amount remain unchanged, leverage ratio also remains unchanged
-            return True
-        else:
-            return False
-            
     def returnOnPortfolio(self):
         self.portfolio = self.portfolio * (1+self.model.portfolioReturnRate)
+        self.model.e[self.unique_id] = self.portfolio
         self.updateBlanceSheet()
     
     def reset(self):
@@ -71,13 +76,13 @@ class Bank(mesa.Agent):
     
     def step(self):
         if not self.default:
-            self.returnOnPortfolio()
             self.borrowRequest()
+            self.returnOnPortfolio()
     
 
 class bankingSystem(mesa.Model):
     def __init__(self, banksFile, 
-                 targetLeverageRatio, 
+                 leverageRatio, 
                  capitalReserve,
                  num_borrowing,
                  sizeOfBorrowing,
@@ -89,7 +94,8 @@ class bankingSystem(mesa.Model):
                  portfolioReturnRate = 0., 
                  liquidityShockNum = 0,
                  shockSize = 0.0,
-                 shockDuration=[-1,-1]):
+                 shockDuration=[-1,-1],
+                 w=None):
         
         # interest rate
         self.fedRate = fedRate
@@ -110,9 +116,11 @@ class bankingSystem(mesa.Model):
         banksData = pd.read_csv(banksFile).iloc[:num_banks,:]
         self.banks = banksData["bank"]
         self.N = num_banks
-        self.targetLeverageRatio = targetLeverageRatio
+        self.leverageRatio = leverageRatio
         self.capitalReserve = capitalReserve
         self.num_borrowing = num_borrowing
+        # RL realted parameters
+        self.w = w
         self.sizeOfBorrowing = sizeOfBorrowing
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
         # we also introduce a time decay factor for trust       
@@ -139,13 +147,15 @@ class bankingSystem(mesa.Model):
         self.datacollector = mesa.DataCollector(
             model_reporters={"Trust Matrix": "trustMatrix", 
                              "Liability Matrix": "L",
-                             "Asset Matrix": "e"},
-            agent_reporters={"PortfolioValue": "portfolio",
-                                "Lending": "lending",
-                                "Borrowing": "borrowing", 
-                                "Equity": "equity",
-                                "Default": "default",
-                                "Leverage": "leverage"})
+                             "Asset Matrix": "e"}
+            # ,
+            # agent_reporters={"PortfolioValue": "portfolio",
+            #                     "Lending": "lending",
+            #                     "Borrowing": "borrowing", 
+            #                     "Equity": "equity",
+            #                     "Default": "default",
+            #                     "Leverage": "leverage"}
+            )
         
     def updateTrustMatrix(self):
         # add time decay of concentration parameter
