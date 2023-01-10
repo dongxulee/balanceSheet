@@ -2,7 +2,32 @@ import mesa
 import numpy as np
 import pandas as pd
 from eisenbergNoe import eisenbergNoe
-from policy import action
+from collections import defaultdict
+import torch
+import torch.nn as nn
+
+# Define the policy function as a PyTorch model
+class PolicyFunction(nn.Module):
+  def __init__(self, input_size, hidden_size, output_size):
+    super(PolicyFunction, self).__init__()
+    self.fc1 = nn.Linear(input_size, hidden_size)
+    self.fc2 = nn.Linear(hidden_size, hidden_size)
+    self.fc3 = nn.Linear(hidden_size, output_size)
+  
+  def forward(self, x):
+    x = self.fc1(x)
+    x = torch.relu(x)
+    x = self.fc2(x)
+    x = torch.relu(x)
+    x = self.fc3(x)
+    x = torch.sigmoid(x)
+    return x
+
+policy = PolicyFunction(5, 10, 1)
+a = policy(torch.tensor([1.0,2.0,3.0,4.0,5.0]))
+a.backward()
+
+
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
@@ -37,10 +62,11 @@ class Bank(mesa.Agent):
                 # if the lending decision is made, update the balance sheet
                 if other_agent.portfolio * (1-self.model.capitalReserve) > amount:
                     # lending ratio is based on the policy function
-                    information = np.array([other_agent.lending/other_agent.portfolio, other_agent.borrowing/other_agent.portfolio,
+                    state = torch.array([other_agent.lending/other_agent.portfolio, other_agent.borrowing/other_agent.portfolio, amount/other_agent.portfolio,
                                             self.lending/self.portfolio, self.borrowing/self.portfolio, amount/other_agent.portfolio])
-                    a = action(information, self.model.w)
-                    self.gradient += (a - np.dot(self.model.w, information)) * information
+                    a = policy(state)
+                    a_hat = a + np.random.normal(0, 0.01)
+                    self.gradient += (a_hat - a) * 
                     ratio = 1.0/(1.0+np.exp(-a))
                     if ratio > 0.5:
                         amount = amount * ratio
@@ -107,6 +133,8 @@ class bankingSystem(mesa.Model):
         self.shockSize = shockSize
         # time of the shock
         self.shockDuration = shockDuration
+        # shocked banks
+        self.shockedBanks = defaultdict(int)
         # asset recovery rate 
         self.alpha = alpha
         # interbank loan recovery rate
@@ -180,9 +208,9 @@ class bankingSystem(mesa.Model):
                 for _ in range(self.liquidityShockNum):
                     # randomly choose a bank to be insolvent
                     exposedBank = np.random.choice(self.N)
-                    # set the bank's equity to zero
+                    # set the bank's equity to drop
                     self.e[exposedBank] *= (1-self.shockSize)
-
+                    self.shockedBanks[exposedBank] += 1
     def simulate(self):
         self.schedule.step()
         self.liquidityShock()

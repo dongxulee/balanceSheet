@@ -2,6 +2,8 @@ import mesa
 import numpy as np
 import pandas as pd
 from eisenbergNoe import eisenbergNoe
+from collections import defaultdict
+
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
@@ -55,6 +57,7 @@ class Bank(mesa.Agent):
             
     def returnOnPortfolio(self):
         self.portfolio = self.portfolio * (1+self.model.portfolioReturnRate)
+        self.model.e[self.unique_id] = self.portfolio
         self.updateBlanceSheet()
     
     def reset(self):
@@ -71,8 +74,8 @@ class Bank(mesa.Agent):
     
     def step(self):
         if not self.default:
-            self.returnOnPortfolio()
             self.borrowRequest()
+            self.returnOnPortfolio()
     
 
 class bankingSystem(mesa.Model):
@@ -101,6 +104,8 @@ class bankingSystem(mesa.Model):
         self.shockSize = shockSize
         # time of the shock
         self.shockDuration = shockDuration
+        # shocked banks
+        self.shockedBanks = defaultdict(int)
         # asset recovery rate 
         self.alpha = alpha
         # interbank loan recovery rate
@@ -170,8 +175,9 @@ class bankingSystem(mesa.Model):
                 for _ in range(self.liquidityShockNum):
                     # randomly choose a bank to be insolvent
                     exposedBank = np.random.choice(self.N)
-                    # set the bank's equity to zero
+                    # set the bank's equity to drop
                     self.e[exposedBank] *= (1-self.shockSize)
+                    self.shockedBanks[exposedBank] += 1
 
     def simulate(self):
         self.schedule.step()

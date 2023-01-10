@@ -7,7 +7,7 @@ warnings.filterwarnings('ignore')
 
 # simulation and data collection
 simulationSteps = 500
-gradientSteps = 200
+gradientSteps = 100
 def R_tau(model_data):
     value = (model_data['Asset Matrix'][simulationSteps] +
     model_data['Liability Matrix'][simulationSteps].T.sum(axis = 1, keepdims = True) - model_data['Liability Matrix'][simulationSteps].sum(axis = 1, keepdims=True)) - (model_data['Asset Matrix'][0] +
@@ -19,7 +19,7 @@ def R_tau(model_data):
 stepSize = 0.001
 r_collection = []
 w_collection = []
-w = np.zeros(5)
+w = np.zeros(6)
 for _ in tqdm(range(gradientSteps)):
     model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
                     leverageRatio = 11.0,                                     # leverage ratio upper bound for all banks
@@ -50,7 +50,7 @@ for _ in tqdm(range(gradientSteps)):
     gradient = gradient / r.size
     w = w + stepSize*gradient
     w_collection.append(w)
-    r_collection.append(r)
+    r_collection.append(r[0])
     
 np.save('w_collection', w_collection)
-np.save('r_collection', w_collection)
+np.save('r_collection', r_collection)
