@@ -48,8 +48,7 @@ class Bank(mesa.Agent):
                     a_val = a.item()
                     # log_probs collection
                     self.log_probs += dist.log_prob(a)
-                    if a_val > 0.5:
-                        amount = amount * a_val
+                    if np.random.rand() < a_val:
                         # update borrowers balance sheet
                         self.model.L[self.unique_id, target] += amount 
                         self.portfolio += amount
