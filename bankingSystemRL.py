@@ -4,29 +4,6 @@ import pandas as pd
 from eisenbergNoe import eisenbergNoe
 from collections import defaultdict
 import torch
-import torch.nn as nn
-
-# Define the policy function as a PyTorch model
-class PolicyFunction(nn.Module):
-  def __init__(self, input_size, hidden_size, output_size):
-    super(PolicyFunction, self).__init__()
-    self.fc1 = nn.Linear(input_size, hidden_size)
-    self.fc2 = nn.Linear(hidden_size, hidden_size)
-    self.fc3 = nn.Linear(hidden_size, output_size)
-  
-  def forward(self, x):
-    x = self.fc1(x)
-    x = torch.relu(x)
-    x = self.fc2(x)
-    x = torch.relu(x)
-    x = self.fc3(x)
-    x = torch.sigmoid(x)
-    return x
-
-policy = PolicyFunction(5, 10, 1)
-a = policy(torch.tensor([1.0,2.0,3.0,4.0,5.0]))
-a.backward()
-
 
 
 class Bank(mesa.Agent):
@@ -43,8 +20,8 @@ class Bank(mesa.Agent):
         self.leverage = 0.        
         # if a bank is solvent
         self.default = False      # change at clearingDebt()
-        # accumulated gradient 
-        self.gradient = np.zeros(self.model.w.size)
+        # accumulated action probabilities in an episode  
+        self.log_probs = 0.
     
     def updateBlanceSheet(self):
         self.equity = self.portfolio + self.lending - self.borrowing
@@ -62,14 +39,17 @@ class Bank(mesa.Agent):
                 # if the lending decision is made, update the balance sheet
                 if other_agent.portfolio * (1-self.model.capitalReserve) > amount:
                     # lending ratio is based on the policy function
-                    state = torch.array([other_agent.lending/other_agent.portfolio, other_agent.borrowing/other_agent.portfolio, amount/other_agent.portfolio,
-                                            self.lending/self.portfolio, self.borrowing/self.portfolio, amount/other_agent.portfolio])
-                    a = policy(state)
-                    a_hat = a + np.random.normal(0, 0.01)
-                    self.gradient += (a_hat - a) * 
-                    ratio = 1.0/(1.0+np.exp(-a))
-                    if ratio > 0.5:
-                        amount = amount * ratio
+                    state = torch.tensor([other_agent.lending/other_agent.portfolio, other_agent.borrowing/other_agent.portfolio, amount/other_agent.portfolio,
+                                            self.lending/self.portfolio, self.borrowing/self.portfolio, amount/other_agent.portfolio],dtype=torch.float)
+                    mean = self.model.policy(state)
+                    dist = torch.distributions.Normal(mean, 0.01)
+                    # sampled action
+                    a = dist.sample()
+                    a_val = a.item()
+                    # log_probs collection
+                    self.log_probs += dist.log_prob(a)
+                    if a_val > 0.5:
+                        amount = amount * a_val
                         # update borrowers balance sheet
                         self.model.L[self.unique_id, target] += amount 
                         self.portfolio += amount
@@ -121,7 +101,7 @@ class bankingSystem(mesa.Model):
                  liquidityShockNum = 0,
                  shockSize = 0.0,
                  shockDuration=[-1,-1],
-                 w=None):
+                 policy = None):
         
         # interest rate
         self.fedRate = fedRate
@@ -148,7 +128,7 @@ class bankingSystem(mesa.Model):
         self.capitalReserve = capitalReserve
         self.num_borrowing = num_borrowing
         # RL realted parameters
-        self.w = w
+        self.policy = policy 
         self.sizeOfBorrowing = sizeOfBorrowing
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
         # we also introduce a time decay factor for trust       
@@ -173,7 +153,7 @@ class bankingSystem(mesa.Model):
             self.schedule.add(a)
             
         self.datacollector = mesa.DataCollector(
-            model_reporters={"Trust Matrix": "trustMatrix", 
+            model_reporters={ "Trust Matrix": "trustMatrix", 
                              "Liability Matrix": "L",
                              "Asset Matrix": "e"}
             # ,
@@ -215,5 +195,5 @@ class bankingSystem(mesa.Model):
         self.schedule.step()
         self.liquidityShock()
         self.updateTrustMatrix()
-        self.datacollector.collect(self)
+        # self.datacollector.collect(self)
         self.clearingDebt()
