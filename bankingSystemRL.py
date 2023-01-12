@@ -40,7 +40,7 @@ class Bank(mesa.Agent):
                 if other_agent.portfolio * (1-self.model.capitalReserve) > amount:
                     # lending ratio is based on the policy function
                     state = torch.tensor([other_agent.lending/other_agent.portfolio, other_agent.borrowing/other_agent.portfolio, amount/other_agent.portfolio,
-                                            self.lending/self.portfolio, self.borrowing/self.portfolio, amount/other_agent.portfolio],dtype=torch.float)
+                                            self.lending/self.portfolio, self.borrowing/self.portfolio, amount/self.portfolio],dtype=torch.float)
                     mean = self.model.policy(state)
                     dist = torch.distributions.Normal(mean, 0.01)
                     # sampled action
