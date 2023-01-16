@@ -1,21 +1,31 @@
-from bankingSystemRLnumpy import * 
+from bankingSystemRLtorch import * 
 from helperFunctions import *
 from tqdm import tqdm
 import warnings 
 warnings.filterwarnings('ignore')
+import torch
+import torch.nn as nn
 
-class PolicyFunction:
-    def __init__(self, input_size):
-        self.weights = np.zeros(input_size)
+# Define the policy function as a PyTorch model
+class PolicyFunction(nn.Module):
+  def __init__(self, input_size):
+    super(PolicyFunction, self).__init__()
+    self.fc1 = nn.Linear(input_size, 1)
+    self.fc1.weight.data.fill_(0.)
+    self.fc1.bias.data.fill_(0.)
+    
+  
+  def forward(self, x):
+    x = self.fc1(x)
+    x = torch.sigmoid(x)
+    return x
 
-    def __call__(self, x): 
-        val = np.dot(x, self.weights) 
-        return val
-    
-    def update(self, gradient, stepSize):
-        self.weights += stepSize * gradient
-    
 policy = PolicyFunction(6)
+# mean = policy(torch.tensor([0.0000, 0.0000, 0.0703, 0.0000, 0.0000, 0.0703], dtype=torch.float))
+# dist = torch.distributions.Normal(mean, 0.01)
+# a = dist.sample()
+# like = dist.log_prob(a)
+# a.item()
 
 modele = pd.read_csv("balanceSheetAnalysis/banksData_2022.csv")["equity"][:100].values.reshape(-1,1)
 def R_tau(model, modele):
@@ -26,6 +36,7 @@ Rewards = []
 # simulation and data collection
 simulationSteps = 500
 gradientSteps = 1000
+optimizer = torch.optim.Adam(policy.parameters(), lr=0.01)
 
 for sim in range(gradientSteps):
     print(sim)
@@ -49,13 +60,15 @@ for sim in range(gradientSteps):
         model.simulate()
     #agent_data = model.datacollector.get_agent_vars_dataframe()
     #model_data = model.datacollector.get_model_vars_dataframe()
-    print(policy.weights)
+
+    policy.zero_grad()
     reward = R_tau(model, modele)
-    gradient = np.zeros(6)
-    for i in range(reward.size):
-        gradient += reward[i] * model.schedule.agents[i].log_probs 
-    gradient /= reward.size
-    policy.update(gradient, stepSize=0.01)
+    loss = 0
+    for i in range(len(reward)):
+        loss -= reward[i] * model.schedule.agents[i].log_probs
+    loss.backward()
+    optimizer.step()
+    torch.save(policy.state_dict(), 'models/model' + str(sim) + '.pt')
+    print(policy.state_dict())
     Rewards.append(reward)
-    np.save("models/weights" + str(sim), policy.weights)
 np.save("Rewards", Rewards)
