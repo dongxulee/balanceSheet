@@ -8,28 +8,25 @@ import torch.nn as nn
 
 # Define the policy function as a PyTorch model
 class PolicyFunction(nn.Module):
-  def __init__(self, input_size, output_size):
+  def __init__(self, input_size, hidden_size, output_size):
     super(PolicyFunction, self).__init__()
-    # self.fc1 = nn.Linear(input_size, hidden_size)
-    # self.fc1.weight.data.fill_(0.)
-    # self.fc1.bias.data.fill_(0.)
-    # self.fc2 = nn.Linear(hidden_size, output_size)
-    # self.fc2.weight.data.fill_(0.)
-    # self.fc2.bias.data.fill_(0.)
-    self.fc1 = nn.Linear(input_size, 1)
+    self.fc1 = nn.Linear(input_size, hidden_size)
     self.fc1.weight.data.fill_(0.)
     self.fc1.bias.data.fill_(0.)
+    self.fc2 = nn.Linear(hidden_size, output_size)
+    self.fc2.weight.data.fill_(0.)
+    self.fc2.bias.data.fill_(0.)
     
     
   
   def forward(self, x):
     x = self.fc1(x)
-    # x = torch.relu(x)
-    # x = self.fc2(x)
+    x = torch.sigmoid(x)
+    x = self.fc2(x)
     x = torch.sigmoid(x)
     return x
 
-policy = PolicyFunction(6, 1)
+policy = PolicyFunction(6, 10, 1)
 # mean = policy(torch.tensor([0.0000, 0.0000, 0.0703, 0.0000, 0.0000, 0.0703], dtype=torch.float))
 # dist = torch.distributions.Normal(mean, 0.01)
 # a = dist.sample()
@@ -78,5 +75,6 @@ for sim in range(gradientSteps):
     loss.backward()
     optimizer.step()
     torch.save(policy.state_dict(), 'models/model' + str(sim) + '.pt')
+    print(policy.state_dict())
     Rewards.append(reward)
 np.save("Rewards", Rewards)
