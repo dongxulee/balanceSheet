@@ -13,6 +13,7 @@ class Bank(mesa.Agent):
         self.lending = 0.         
         # liabilities
         self.borrowing = 0.       
+        self.deposit = 0.        
         # equity
         self.equity = 0.           # initialize when creating the bank, update in updateBlanceSheet()
         # leverage ratio
@@ -21,7 +22,9 @@ class Bank(mesa.Agent):
         self.default = False      # change at clearingDebt()
     
     def updateBlanceSheet(self):
-        self.equity = self.portfolio + self.lending - self.borrowing
+        # equity = asset - liability
+        self.equity = self.portfolio + self.lending - self.borrowing - self.deposit
+        # leverage ratio = asset / equity
         self.leverage = (self.portfolio + self.lending) / self.equity
         
     def borrowRequest(self):
@@ -46,7 +49,7 @@ class Bank(mesa.Agent):
     def lendDecision(self, borrowingBank, amount):
         # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
         # borrowingBank's information could be access through borrowingBank 
-        if self.portfolio * (1-self.model.capitalReserve) > amount and np.random.rand() < 0.5:
+        if self.portfolio - self.deposit * self.model.capitalReserve > amount and self.leverage < self.model.leverageRatio:
             self.portfolio -= amount
             self.model.e[self.unique_id] = self.portfolio
             self.lending += amount
@@ -54,28 +57,24 @@ class Bank(mesa.Agent):
             return True
         else:
             return False
-            
-    def returnOnPortfolio(self):
-        self.portfolio = self.portfolio * (1+self.model.portfolioReturnRate)
-        self.model.e[self.unique_id] = self.portfolio
-        self.updateBlanceSheet()
     
     def reset(self):
         self.portfolio = self.model.e[self.unique_id][0]
         self.lending = 0.    
         # liabilities
         self.borrowing = 0.      
-        # equity
-        self.equity = self.portfolio   
-        # leverage ratio
-        self.leverage = 1.0
-        if self.portfolio == 0.:
+        self.updateBlanceSheet()
+        if self.equity <= 0.:
+            # use portfolio to pay off the deposit 
+            self.portfolio = 0.
+            self.deposit = 0.
+            self.leverage = 0.
+            self.equity = 0.
             self.default = True
-    
+        
     def step(self):
         if not self.default:
             self.borrowRequest()
-            self.returnOnPortfolio()
     
 
 class bankingSystem(mesa.Model):
@@ -90,14 +89,20 @@ class bankingSystem(mesa.Model):
                  concentrationParameter = None, 
                  fedRate = 0., 
                  portfolioReturnRate = 0., 
+                 returnVolatiliy = 0.,
+                 returnCorrelation = np.diag(np.ones(100)),
                  liquidityShockNum = 0,
                  shockSize = 0.0,
                  shockDuration=[-1,-1]):
         
         # interest rate
-        self.fedRate = fedRate
+        self.fedRate = (fedRate+1)**(1/252) - 1
         # portfolio return rate
-        self.portfolioReturnRate = portfolioReturnRate
+        self.portfolioReturnRate = (portfolioReturnRate+1)**(1/252) - 1
+        # portfolio return volatility
+        self.returnVolatiliy = returnVolatiliy/np.sqrt(252)
+        # return correlation matrix
+        self.returnCorrelation = returnCorrelation
         # number of liquidity shocks
         self.liquidityShockNum = liquidityShockNum 
         # size of the shock
@@ -130,15 +135,19 @@ class bankingSystem(mesa.Model):
         # liability matrix 
         self.L = np.zeros((self.N,self.N))
         # asset matrix
-        self.e = banksData["equity"].values.reshape(self.N,1)
+        self.e = (banksData["equity"].values + banksData["deposit"].values).reshape(self.N,1)
+        # deposit matrix
+        self.d = banksData["deposit"].values.reshape(self.N,1)
         # create a schedule for banks
         self.schedule = mesa.time.RandomActivation(self)
     
         # create banks and put them in schedule
         for i in range(self.N):
             a = Bank(i, self)
-            a.portfolio = banksData["equity"][i]
+            a.deposit = banksData["deposit"][i]
             a.equity = banksData["equity"][i]
+            a.portfolio = a.deposit + a.equity
+            a.updateBlanceSheet()
             self.schedule.add(a)
             
         self.datacollector = mesa.DataCollector(
@@ -147,6 +156,7 @@ class bankingSystem(mesa.Model):
                              "Asset Matrix": "e"},
             agent_reporters={"PortfolioValue": "portfolio",
                                 "Lending": "lending",
+                                "Deposit": "deposit",
                                 "Borrowing": "borrowing", 
                                 "Equity": "equity",
                                 "Default": "default",
@@ -161,13 +171,19 @@ class bankingSystem(mesa.Model):
         # Returns the new portfolio value after clearing debt
         _, e, insolventBanks = eisenbergNoe(self.L*(1+self.fedRate), self.e, self.alpha, self.beta)
         self.e = e
+        insolventBanks = np.where(self.e - self.d <= 0)[0]
         # reset the Liabilities matrix after clearing debt
         self.L = np.zeros((self.N,self.N))
         if len(insolventBanks) > 0:
             self.concentrationParameter[:,insolventBanks] = 0
+            self.e[insolventBanks] = 0
         for agent in self.schedule.agents:
             agent.reset()
-            
+
+    def returnOnPortfolio(self):
+        # Return on the portfolio:
+        self.e += (self.e - self.d*self.capitalReserve) * (self.portfolioReturnRate + self.returnVolatiliy * (self.returnCorrelation @ np.random.randn(self.N,1)))
+           
     def liquidityShock(self):
         # liquidity shock to banks portfolio
         if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
@@ -180,8 +196,9 @@ class bankingSystem(mesa.Model):
                     self.shockedBanks[exposedBank] += 1
 
     def simulate(self):
-        self.schedule.step()
-        self.liquidityShock()
         self.updateTrustMatrix()
+        self.schedule.step()
+        self.returnOnPortfolio()
+        self.liquidityShock()
         self.datacollector.collect(self)
         self.clearingDebt()
