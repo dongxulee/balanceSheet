@@ -49,7 +49,7 @@ class Bank(mesa.Agent):
     def lendDecision(self, borrowingBank, amount):
         # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
         # borrowingBank's information could be access through borrowingBank 
-        if self.portfolio - self.deposit * self.model.capitalReserve > amount and self.leverage < self.model.leverageRatio:
+        if self.portfolio - self.deposit * self.model.depositReserve > amount and self.leverage < self.model.leverageRatio:
             self.portfolio -= amount
             self.model.e[self.unique_id] = self.portfolio
             self.lending += amount
@@ -60,17 +60,19 @@ class Bank(mesa.Agent):
     
     def reset(self):
         self.portfolio = self.model.e[self.unique_id][0]
-        self.lending = 0.    
-        # liabilities
-        self.borrowing = 0.      
-        self.updateBlanceSheet()
-        if self.equity <= 0.:
+        # if default 
+        if self.portfolio == 0:
             # use portfolio to pay off the deposit 
-            self.portfolio = 0.
             self.deposit = 0.
+            self.lending = 0.
+            self.borrowing = 0.
             self.leverage = 0.
             self.equity = 0.
-            self.default = True
+            self.default = True 
+        else:
+            self.lending = 0.    
+            self.borrowing = 0.      
+            self.updateBlanceSheet()
         
     def step(self):
         if not self.default:
@@ -80,7 +82,7 @@ class Bank(mesa.Agent):
 class bankingSystem(mesa.Model):
     def __init__(self, banksFile, 
                  leverageRatio, 
-                 capitalReserve,
+                 depositReserve,
                  num_borrowing,
                  sizeOfBorrowing,
                  num_banks, 
@@ -121,7 +123,7 @@ class bankingSystem(mesa.Model):
         self.banks = banksData["bank"]
         self.N = num_banks
         self.leverageRatio = leverageRatio
-        self.capitalReserve = capitalReserve
+        self.depositReserve = depositReserve
         self.num_borrowing = num_borrowing
         self.sizeOfBorrowing = sizeOfBorrowing
         # start with a uniform distribution of trust, using Dirichlet distribution as a conjugate prior
@@ -131,11 +133,11 @@ class bankingSystem(mesa.Model):
             np.fill_diagonal(self.concentrationParameter, 0.)
         else:
             self.concentrationParameter = concentrationParameter
-        self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
+        self.trustMatrix = self.concentrationParameter / (self.N-1.)
         # liability matrix 
         self.L = np.zeros((self.N,self.N))
         # asset matrix
-        self.e = (banksData["equity"].values + banksData["deposit"].values).reshape(self.N,1)
+        self.e = (banksData["assets"].values).reshape(self.N,1)
         # deposit matrix
         self.d = banksData["deposit"].values.reshape(self.N,1)
         # create a schedule for banks
@@ -144,9 +146,9 @@ class bankingSystem(mesa.Model):
         # create banks and put them in schedule
         for i in range(self.N):
             a = Bank(i, self)
-            a.deposit = banksData["deposit"][i]
-            a.equity = banksData["equity"][i]
-            a.portfolio = a.deposit + a.equity
+            a.deposit = self.d[i]
+            a.portfolio = self.e[i]
+            a.equity = a.portfolio - a.deposit
             a.updateBlanceSheet()
             self.schedule.add(a)
             
@@ -167,9 +169,9 @@ class bankingSystem(mesa.Model):
         self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
         self.trustMatrix = self.concentrationParameter / (self.N - 1)
             
-    def clearingDebt(self):
+    def clearingDebt(self): 
         # Returns the new portfolio value after clearing debt
-        _, e, insolventBanks = eisenbergNoe(self.L*(1+self.fedRate), self.e, self.alpha, self.beta)
+        _, e = eisenbergNoe(self.L*(1+self.fedRate), self.e, self.alpha, self.beta)
         self.e = e
         insolventBanks = np.where(self.e - self.d <= 0)[0]
         # reset the Liabilities matrix after clearing debt
@@ -182,7 +184,7 @@ class bankingSystem(mesa.Model):
 
     def returnOnPortfolio(self):
         # Return on the portfolio:
-        self.e += (self.e - self.d*self.capitalReserve) * (self.portfolioReturnRate + self.returnVolatiliy * (self.returnCorrelation @ np.random.randn(self.N,1)))
+        self.e += (self.e - self.d*self.depositReserve) * (self.portfolioReturnRate + self.returnVolatiliy * (self.returnCorrelation @ np.random.randn(self.N,1)))
            
     def liquidityShock(self):
         # liquidity shock to banks portfolio
@@ -192,7 +194,8 @@ class bankingSystem(mesa.Model):
                     # randomly choose a bank to be insolvent
                     exposedBank = np.random.choice(self.N)
                     # set the bank's equity to drop
-                    self.e[exposedBank] *= (1-self.shockSize)
+                    self.e[exposedBank] -= (self.e[exposedBank] - 
+                                            self.d[exposedBank] * self.depositReserve)*self.shockSize
                     self.shockedBanks[exposedBank] += 1
 
     def simulate(self):
