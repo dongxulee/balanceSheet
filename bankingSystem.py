@@ -2,8 +2,6 @@ import mesa
 import numpy as np
 import pandas as pd
 from eisenbergNoe import eisenbergNoe
-from collections import defaultdict
-
 
 class Bank(mesa.Agent):
     def __init__(self, unique_id, model):
@@ -31,7 +29,11 @@ class Bank(mesa.Agent):
         for _ in range(self.model.num_borrowing):
             if self.leverage < self.model.leverageRatio:
                 # randomly choose a bank to borrow from the trust matrix
-                target = np.random.choice(self.model.N, p=self.model.trustMatrix[self.unique_id])
+                prob = self.model.trustMatrix[self.unique_id]
+                # only one banks remains solvent
+                if np.isnan(prob).any():
+                    break
+                target = np.random.choice(self.model.N, p=prob)
                 # choose a borrowing amount equal to the equity capital
                 amount = self.equity * self.model.sizeOfBorrowing
                 # bring out the target bank and let him decide whether to lend
@@ -73,6 +75,13 @@ class Bank(mesa.Agent):
             self.lending = 0.    
             self.borrowing = 0.      
             self.updateBlanceSheet()
+            # if the leverage ratio is too high, the bank will pay off the deposit, equity value remains unchanged
+            if self.leverage > self.model.leverageRatio:
+                self.portfolio = self.equity * self.model.leverageRatio
+                self.model.e[self.unique_id] = self.portfolio
+                self.deposit = self.portfolio - self.equity
+                self.model.d[self.unique_id] = self.deposit
+                self.leverage = self.model.leverageRatio
         
     def step(self):
         if not self.default:
@@ -111,8 +120,6 @@ class bankingSystem(mesa.Model):
         self.shockSize = shockSize
         # time of the shock
         self.shockDuration = shockDuration
-        # shocked banks
-        self.shockedBanks = defaultdict(int)
         # asset recovery rate 
         self.alpha = alpha
         # interbank loan recovery rate
@@ -139,21 +146,21 @@ class bankingSystem(mesa.Model):
         # asset matrix
         self.e = (banksData["assets"].values).reshape(self.N,1)
         # deposit matrix
-        self.d = banksData["deposit"].values.reshape(self.N,1)
+        self.d = banksData["assets"].values.reshape(self.N,1) * 0.8
         # create a schedule for banks
         self.schedule = mesa.time.RandomActivation(self)
     
         # create banks and put them in schedule
         for i in range(self.N):
             a = Bank(i, self)
-            a.deposit = self.d[i]
-            a.portfolio = self.e[i]
+            a.deposit = self.d[i][0]
+            a.portfolio = self.e[i][0]
             a.equity = a.portfolio - a.deposit
             a.updateBlanceSheet()
             self.schedule.add(a)
             
         self.datacollector = mesa.DataCollector(
-            model_reporters={"Trust Matrix": "trustMatrix", 
+            model_reporters={"Trust Matrix": "trustMatrix",
                              "Liability Matrix": "L",
                              "Asset Matrix": "e"},
             agent_reporters={"PortfolioValue": "portfolio",
@@ -166,8 +173,8 @@ class bankingSystem(mesa.Model):
         
     def updateTrustMatrix(self):
         # add time decay of concentration parameter
-        self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * (self.N - 1)
-        self.trustMatrix = self.concentrationParameter / (self.N - 1)
+        self.concentrationParameter = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True) * self.num_borrowing * (self.N - 1)
+        self.trustMatrix = self.concentrationParameter / (self.N - 1) / self.num_borrowing
             
     def clearingDebt(self): 
         # Returns the new portfolio value after clearing debt
@@ -190,13 +197,10 @@ class bankingSystem(mesa.Model):
         # liquidity shock to banks portfolio
         if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
             if self.liquidityShockNum > 0:
-                for _ in range(self.liquidityShockNum):
-                    # randomly choose a bank to be insolvent
-                    exposedBank = np.random.choice(self.N)
-                    # set the bank's equity to drop
-                    self.e[exposedBank] -= (self.e[exposedBank] - 
-                                            self.d[exposedBank] * self.depositReserve)*self.shockSize
-                    self.shockedBanks[exposedBank] += 1
+                exposedBank = np.random.choice(self.N, self.liquidityShockNum,replace=False)
+                # set the bank's equity to drop
+                self.e[exposedBank] -= (self.e[exposedBank] - 
+                                        self.d[exposedBank] * self.depositReserve)*self.shockSize
 
     def simulate(self):
         self.updateTrustMatrix()
