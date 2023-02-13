@@ -102,13 +102,15 @@ def aggregateSumOverYears(des, name, beginYear, endYear):
 
 def comparisonPlotsOverYears(df1, df2, label1, label2, ylabel1, ylabel2):
     fig, ax = plt.subplots()
-    ax.plot(df1.index, df1[df1.columns[0]],"r", label=label1)
+    ax.set_title("Aggregated Borrowing and Federal Fund Rate over the years")
+    ax.plot(df1[df1.columns[0]], df1[df1.columns[1]],"r", label=label1)
     ax.set_ylabel(ylabel1, color='r', fontsize=12)
     ax.legend(bbox_to_anchor=(1, 1.1))
     ax1 = ax.twinx()
     ax.set_xlabel('Year', fontsize=10)
-    ax1.plot(df2.index, df2[df2.columns], 'b', label=label2)
+    df2.index = pd.to_datetime(df2.index, format="%Y")
+    ax1.plot(df2.index, df2[df2.columns[0]], 'b', label=label2)
     ax1.set_ylabel(ylabel2, color='b', fontsize=12)
     ax1.legend(bbox_to_anchor=(0.15, 1.1))
-    plt.xticks(range(2001,2023))
     plt.show()
+    
