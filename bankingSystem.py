@@ -141,7 +141,7 @@ class bankingSystem(mesa.Model):
             np.fill_diagonal(self.concentrationParameter, 0.)
         else:
             self.concentrationParameter = concentrationParameter
-        self.trustMatrix = self.concentrationParameter / (self.N-1.)
+        self.trustMatrix = self.concentrationParameter / (self.N - 1) / self.num_borrowing
         # liability matrix 
         self.L = np.zeros((self.N,self.N))
         # asset matrix
@@ -205,11 +205,8 @@ class bankingSystem(mesa.Model):
     def correlatedShock(self):
         # liquidity shock to banks portfolio
         if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
-            if self.liquidityShockNum > 0:
-                exposedBank = np.random.choice(self.N, self.liquidityShockNum,replace=False)
-                # set the bank's equity to drop
-                self.e[exposedBank] -= (self.e[exposedBank] - 
-                                        self.d[exposedBank] * self.depositReserve)*(self.shockSize + 5*self.Cholesky @ np.random.randn(self.N,1))[exposedBank]
+            # set the bank's equity to drop
+            self.e -= (self.e - self.d * self.depositReserve)*(self.shockSize + 5*np.abs(self.Cholesky @ np.random.randn(self.N,1)))
 
     def simulate(self):
         self.updateTrustMatrix()

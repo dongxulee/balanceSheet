@@ -39,8 +39,8 @@ def netWorkGraph(matrix, model, printLabel=True):
 def simulationMonitor(agent_data, model_data, simulationSteps, plot=True):
     numberOfDefault = [agent_data.xs(i, level="Step")["Default"].sum() for i in range(simulationSteps)]
     averageLeverage = [agent_data.xs(i, level="Step")["Leverage"].sum() / (100 - agent_data.xs(i, level="Step")["Default"].sum()) for i in range(simulationSteps)]
-    fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
-    fig.set_size_inches(40, 40)
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
+    fig.set_size_inches(40, 20)
     ax1.set_title("Single simulation average leverage")
     ax1.plot(range(simulationSteps), averageLeverage)
     portfollioValue = [agent_data.xs(i, level="Step")["PortfolioValue"].sum() for i in range(simulationSteps)]
@@ -50,11 +50,19 @@ def simulationMonitor(agent_data, model_data, simulationSteps, plot=True):
     ax3.set_title("Single simulation Number of default banks")
     sizeOfBorrowing = np.array([[model_data["Liability Matrix"][i].sum() for i in range(simulationSteps)]])
     ax4.plot(np.array(sizeOfBorrowing).mean(axis=0))
-    ax4.set_title("Size of borrowing")
-    for i in [0,10,20,40,80,499]:
-        ax5.plot(range(100),model_data["Trust Matrix"][i].sum(axis = 0), label = "step " + str(i))
-    ax5.set_title("Accumulated belief of approving loan requests")
-    if plot:
-        plt.show()
-    else:
-        return numberOfDefault, averageLeverage, portfollioValue, sizeOfBorrowing
+    ax4.set_title("Single simulation Size of borrowing")
+    # for i in [0,10,20,40,80,499]:
+    #     ax5.plot(range(100),model_data["Trust Matrix"][i].sum(axis = 0), label = "step " + str(i))
+    # ax5.set_title("Accumulated belief of approving loan requests")
+    # if plot:
+    #     plt.show()
+    # else:
+    #     return numberOfDefault, averageLeverage, portfollioValue, sizeOfBorrowing
+
+        
+def dataCollect(agent_data, model_data, simulationSteps):
+    numberOfDefault = [agent_data.xs(i, level="Step")["Default"].sum() for i in range(simulationSteps)]
+    averageLeverage = [agent_data.xs(i, level="Step")["Leverage"].sum() / (100 - agent_data.xs(i, level="Step")["Default"].sum()) for i in range(simulationSteps)]
+    portfollioValue = [agent_data.xs(i, level="Step")["PortfolioValue"].sum() for i in range(simulationSteps)]
+    sizeOfBorrowing = np.array([[model_data["Liability Matrix"][i].sum() for i in range(simulationSteps)]])
+    return numberOfDefault, averageLeverage, portfollioValue, sizeOfBorrowing
