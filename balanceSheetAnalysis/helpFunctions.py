@@ -35,17 +35,6 @@ def interestingVar(keyWords, variables):
             interestingVars.append(var)
     return interestingVars
 
-def interestingVar(keyWords, variables):
-    '''
-        print the variables that contain all the key words
-    '''
-    interestingVars = []
-    for var in variables:
-        # if var contains loan or debts or total or asset or liability, then print it out
-        if all([word.lower() in var.lower() for word in keyWords]):
-            interestingVars.append(var)
-    return interestingVars
-
 def searchVar(keyWords, printOut=2, show = True, varNamesOverYears = varNamesOverYears, varNamesOverYearsPlus = varNamesOverYearsPlus):
     '''
         print the variables that contain all the key words, use this function along with Fed data dictionary

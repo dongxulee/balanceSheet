@@ -206,7 +206,7 @@ class bankingSystem(mesa.Model):
         # liquidity shock to banks portfolio
         if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
             # set the bank's equity to drop
-            self.e -= (self.e - self.d * self.depositReserve)*(self.shockSize + 5*np.abs(self.Cholesky @ np.random.randn(self.N,1)))
+            self.e -= (self.e - self.d * self.depositReserve)*(self.shockSize + 5*self.Cholesky @ np.random.randn(self.N,1))
 
     def simulate(self):
         self.updateTrustMatrix()
