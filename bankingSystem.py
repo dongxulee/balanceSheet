@@ -47,7 +47,6 @@ class Bank(mesa.Agent):
                     self.updateBlanceSheet()
                     self.model.concentrationParameter[self.unique_id, target] += 1.
                 
-    # reinforcement learning update later. 
     def lendDecision(self, borrowingBank, amount):
         # collect borrowing banks information, in this version, if the banks have enough liquidity, they will lend 
         # borrowingBank's information could be access through borrowingBank 
@@ -62,7 +61,7 @@ class Bank(mesa.Agent):
     
     def reset(self):
         self.portfolio = self.model.e[self.unique_id][0]
-        # if default 
+        # if default
         if self.portfolio == 0:
             # use portfolio to pay off the deposit 
             self.deposit = 0.
@@ -97,11 +96,11 @@ class bankingSystem(mesa.Model):
                  num_banks, 
                  alpha = 0.99,
                  beta = 0.99,
-                 concentrationParameter = None, 
+                 concentrationParameter = None,
                  fedRate = 0., 
                  portfolioReturnRate = 0., 
                  returnVolatiliy = 0.,
-                 returnCorrelation = np.diag(np.ones(100)),
+                 returnCorrelation = 0.,
                  liquidityShockNum = 0,
                  shockSize = 0.0,
                  shockDuration=[-1,-1]):
@@ -113,8 +112,9 @@ class bankingSystem(mesa.Model):
         # portfolio return volatility
         self.returnVolatiliy = returnVolatiliy/np.sqrt(252)
         # return correlation matrix
-        self.returnCorrelation = returnCorrelation
-        self.Cholesky = np.linalg.cholesky(returnCorrelation * self.returnVolatiliy**2)
+        cMatrix = np.ones((100,100))*returnCorrelation
+        np.fill_diagonal(cMatrix, 1)
+        self.Cholesky = np.linalg.cholesky(cMatrix * self.returnVolatiliy**2)
         # number of liquidity shocks
         self.liquidityShockNum = liquidityShockNum 
         # size of the shock
@@ -139,9 +139,10 @@ class bankingSystem(mesa.Model):
         if concentrationParameter is None:
             self.concentrationParameter = np.ones((self.N,self.N))
             np.fill_diagonal(self.concentrationParameter, 0.)
+            self.trustMatrix = self.concentrationParameter / (self.N - 1)
         else:
             self.concentrationParameter = concentrationParameter
-        self.trustMatrix = self.concentrationParameter / (self.N - 1) / self.num_borrowing
+            self.trustMatrix = self.concentrationParameter / (self.N - 1) / self.num_borrowing
         # liability matrix 
         self.L = np.zeros((self.N,self.N))
         # asset matrix
@@ -209,10 +210,10 @@ class bankingSystem(mesa.Model):
             self.e -= (self.e - self.d * self.depositReserve)*(self.shockSize + 5*self.Cholesky @ np.random.randn(self.N,1))
 
     def simulate(self):
-        self.updateTrustMatrix()
         self.schedule.step()
         self.returnOnPortfolio()
         #self.liquidityShock()
         self.correlatedShock()
         self.datacollector.collect(self)
         self.clearingDebt()
+        self.updateTrustMatrix()
