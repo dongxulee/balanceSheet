@@ -2,356 +2,87 @@ from bankingSystem import *
 from helperFunctions import *
 import numpy as np
 import warnings 
-import multiprocessing
+import copy
 warnings.filterwarnings('ignore')
 
-con = np.load("concentrationParams.npy")
+# start from here
+bankFile = "balanceSheetAnalysis/banksData_2022.csv"
+params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
+                 "leverageRatio": 10.0, # leverage ratio upper bound for all banks
+                 "depositReserve": 0.2, # capital reserve as a ratio of deposit
+                 "num_borrowing": 5, # number of borrowing request per bank per step
+                 "sizeOfBorrowing": 1.0, # size of borrowing as a ratio of equity capital
+                 "concentrationParameter": np.load("concentrationParams.npy"), # concentration parameter for the dirichlet distribution
+                 "num_banks": 100, # number of banks in the system 
+                 "alpha" : 0.5,    # portfolio recovery rate          
+                 "beta" : 0.9,     # interbank loan recovery rate
+                 "fedRate" : 0.04, # interest rate on borrowing   
+                 "portfolioReturnRate" : 0.10, 
+                 "returnVolatiliy" : 0.18,
+                 "returnCorrelation" : 0.8,
+                 "liquidityShockNum" : 0,  # number of liquidity shocks per step (not correlated shocks)
+                 "shockSize" : 5,       # size of the shock
+                 "shockDuration":[300,300] # time of the shock, [-1,-1] sugguests no shock
+                 } 
+numberOfRuns = 1000
 
-################################################################################## Base Model  
-def run(iRun):
-    np.random.seed(iRun+1000)
-    # simulation and data collection
-    simulationSteps = 500
-    cMatrix = np.ones((100,100))*0.8
-    np.fill_diagonal(cMatrix, 1)
-    model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
-                    leverageRatio = 20.0,                                     # leverage ratio upper bound for all banks
-                    depositReserve = 0.2,                                     # capital reserve as a ratio of portfolio value
-                    num_borrowing= 0,                                        # number of borrowing request per bank per step
-                    sizeOfBorrowing = 1.0, concentrationParameter = con,                                      # size of borrowing as a ratio of equity capital
-                    num_banks=100,                                            # number of banks in the system 
-                    alpha = 0.5,                                              # portfolio recovery rate                           
-                    beta = 0.9,                                               # interbank loan recovery rate
-                    fedRate = 0.04,                                            # interest rate on borrowing   
-                    portfolioReturnRate = 0.10,          
-                    # return rate on portfolio
-                    returnVolatiliy = 0.18,
-                    returnCorrelation = cMatrix,
-                    liquidityShockNum = 10,                                    # number of liquidity shocks per step      
-                    shockSize = 0.02,                                          # size of the shock
-                    shockDuration = [300, 300]) # duration of the shock
-                    
-    model.datacollector.collect(model)
-    for _ in range(simulationSteps):
-        model.simulate()
-        
-    agent_data = model.datacollector.get_agent_vars_dataframe()
-    model_data = model.datacollector.get_model_vars_dataframe()
-    return model_data, agent_data
-
-def multiRun(numberOfruns):
-    # running the simulation in parallel
-    cpuNum = 48
-    results = []
-    batchNum = 0
-    while numberOfruns > 0:
-        print(numberOfruns)
-        if numberOfruns > cpuNum:
-            numberOfruns = numberOfruns - cpuNum
-            with multiprocessing.Pool() as pool:
-                # run the function in parallel on the input values
-                results = results + pool.map(run, range(batchNum*cpuNum, (batchNum+1)*cpuNum))
-            batchNum = batchNum + 1
-        else:
-            with multiprocessing.Pool() as pool:
-                results = results + pool.map(run, range(batchNum*cpuNum, batchNum*cpuNum + numberOfruns))
-            numberOfruns = 0
-    return results
-
+# collect the default statistics
 def defaultNumber(results):
     defaultCollection = []
     for iter in range(len(results)):
-        m, a = results[iter]
+        a,m = results[iter]
         defaultCollection.append(a.xs(500, level="Step")["Default"].sum())
     return defaultCollection
 
 def defaultBank(results):
     defaultCollection = []
     for iter in range(len(results)):
-        m, a = results[iter]
+        a,m = results[iter]
         defaultCollection.append(a.xs(500, level="Step")["Default"].values)
     return np.array(defaultCollection)
 
-defaultCollection = []
-defaultBanks = []
-results = multiRun(2000)
-defaultCollection.append(defaultNumber(results))
-defaultBanks.append(defaultBank(results))
+def runAndWriteToFile(numberOfRuns, params, fileName):
+    defaultCollection = []
+    defaultBanks = []
+    results = multiRun(numberOfRuns, params)
+    defaultCollection.append(defaultNumber(results))
+    defaultCollection = np.array(defaultCollection)
+    defaultBanks.append(defaultBank(results))
+    defaultBanks = np.array(defaultBanks)
+    
+    np.save("defaultSimulation/defaultCollection_" + fileName + ".npy", defaultCollection)
+    np.save("defaultSimulation/defaultBanks_" + fileName + ".npy", defaultBanks)
+    
+################################################################################## Base Model  
+params1 = copy.deepcopy(params)
+runAndWriteToFile(numberOfRuns, params1, "baseModel")
 print("Base Model Done")
-# ################################################################################## High Reserve Model  
-# def run(iRun):
-#     np.random.seed(iRun+1000)
-#     # simulation and data collection
-#     simulationSteps = 500
-#     cMatrix = np.ones((100,100))*0.8
-#     np.fill_diagonal(cMatrix, 1)
-#     model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
-#                     leverageRatio = 20.0,                                     # leverage ratio upper bound for all banks
-#                     depositReserve = 0.4,                                     # capital reserve as a ratio of portfolio value
-#                     num_borrowing= 10,                                        # number of borrowing request per bank per step
-#                     sizeOfBorrowing = 1.0, concentrationParameter = con,                                      # size of borrowing as a ratio of equity capital
-#                     num_banks=100,                                            # number of banks in the system 
-#                     alpha = 0.5,                                              # portfolio recovery rate                           
-#                     beta = 0.9,                                               # interbank loan recovery rate
-#                     fedRate = 0.04,                                            # interest rate on borrowing   
-#                     portfolioReturnRate = 0.10,          
-#                     # return rate on portfolio
-#                     returnVolatiliy = 0.18,
-#                     returnCorrelation = cMatrix,
-#                     liquidityShockNum = 10,                                    # number of liquidity shocks per step      
-#                     shockSize = 0.02,                                          # size of the shock
-#                     shockDuration = [300, 300]) # duration of the shock
-                    
-#     model.datacollector.collect(model)
-#     for _ in range(simulationSteps):
-#         model.simulate()
-        
-#     agent_data = model.datacollector.get_agent_vars_dataframe()
-#     model_data = model.datacollector.get_model_vars_dataframe()
-#     return model_data, agent_data
-
-# def multiRun(numberOfruns):
-#     # running the simulation in parallel
-#     cpuNum = 48
-#     results = []
-#     batchNum = 0
-#     while numberOfruns > 0:
-#         if numberOfruns > cpuNum:
-#             numberOfruns = numberOfruns - cpuNum
-#             with multiprocessing.Pool() as pool:
-#                 # run the function in parallel on the input values
-#                 results = results + pool.map(run, range(batchNum*cpuNum, (batchNum+1)*cpuNum))
-#             batchNum = batchNum + 1
-#         else:
-#             with multiprocessing.Pool() as pool:
-#                 results = results + pool.map(run, range(batchNum*cpuNum, batchNum*cpuNum + numberOfruns))
-#             numberOfruns = 0
-#     return results
-
-# results = multiRun(1000)
-# defaultCollection.append(defaultNumber(results))
-# defaultBanks.append(defaultBank(results))
-# print("High Reserve Model Done")
-# ################################################################################## Low Leverage Model  
-# def run(iRun):
-#     np.random.seed(iRun+1000)
-#     # simulation and data collection
-#     simulationSteps = 500
-#     cMatrix = np.ones((100,100))*0.8
-#     np.fill_diagonal(cMatrix, 1)
-#     model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
-#                     leverageRatio = 15.0,                                     # leverage ratio upper bound for all banks
-#                     depositReserve = 0.2,                                     # capital reserve as a ratio of portfolio value
-#                     num_borrowing= 10,                                        # number of borrowing request per bank per step
-#                     sizeOfBorrowing = 1.0, concentrationParameter = con,                                      # size of borrowing as a ratio of equity capital
-#                     num_banks=100,                                            # number of banks in the system 
-#                     alpha = 0.5,                                              # portfolio recovery rate                           
-#                     beta = 0.9,                                               # interbank loan recovery rate
-#                     fedRate = 0.04,                                            # interest rate on borrowing   
-#                     portfolioReturnRate = 0.10,          
-#                     # return rate on portfolio
-#                     returnVolatiliy = 0.18,
-#                     returnCorrelation = cMatrix,
-#                     liquidityShockNum = 10,                                    # number of liquidity shocks per step      
-#                     shockSize = 0.02,                                          # size of the shock
-#                     shockDuration = [300, 300]) # duration of the shock
-                    
-#     model.datacollector.collect(model)
-#     for _ in range(simulationSteps):
-#         model.simulate()
-        
-#     agent_data = model.datacollector.get_agent_vars_dataframe()
-#     model_data = model.datacollector.get_model_vars_dataframe()
-#     return model_data, agent_data
-
-# def multiRun(numberOfruns):
-#     # running the simulation in parallel
-#     cpuNum = 48
-#     results = []
-#     batchNum = 0
-#     while numberOfruns > 0:
-#         if numberOfruns > cpuNum:
-#             numberOfruns = numberOfruns - cpuNum
-#             with multiprocessing.Pool() as pool:
-#                 # run the function in parallel on the input values
-#                 results = results + pool.map(run, range(batchNum*cpuNum, (batchNum+1)*cpuNum))
-#             batchNum = batchNum + 1
-#         else:
-#             with multiprocessing.Pool() as pool:
-#                 results = results + pool.map(run, range(batchNum*cpuNum, batchNum*cpuNum + numberOfruns))
-#             numberOfruns = 0
-#     return results
-
-# results = multiRun(1000)
-# defaultCollection.append(defaultNumber(results))
-# defaultBanks.append(defaultBank(results))
-# print("Low Leverage Model Done")
-# ################################################################################## Low correlation Model  
-# def run(iRun):
-#     np.random.seed(iRun+1000)
-#     # simulation and data collection
-#     simulationSteps = 500
-#     cMatrix = np.ones((100,100))*0.4
-#     np.fill_diagonal(cMatrix, 1)
-#     model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
-#                     leverageRatio = 20.0,                                     # leverage ratio upper bound for all banks
-#                     depositReserve = 0.2,                                     # capital reserve as a ratio of portfolio value
-#                     num_borrowing= 10,                                        # number of borrowing request per bank per step
-#                     sizeOfBorrowing = 1.0, concentrationParameter = con,                                      # size of borrowing as a ratio of equity capital
-#                     num_banks=100,                                            # number of banks in the system 
-#                     alpha = 0.5,                                              # portfolio recovery rate                           
-#                     beta = 0.9,                                               # interbank loan recovery rate
-#                     fedRate = 0.04,                                            # interest rate on borrowing   
-#                     portfolioReturnRate = 0.10,          
-#                     # return rate on portfolio
-#                     returnVolatiliy = 0.18,
-#                     returnCorrelation = cMatrix,
-#                     liquidityShockNum = 10,                                    # number of liquidity shocks per step      
-#                     shockSize = 0.02,                                          # size of the shock
-#                     shockDuration = [300, 300]) # duration of the shock
-                    
-#     model.datacollector.collect(model)
-#     for _ in range(simulationSteps):
-#         model.simulate()
-        
-#     agent_data = model.datacollector.get_agent_vars_dataframe()
-#     model_data = model.datacollector.get_model_vars_dataframe()
-#     return model_data, agent_data
-
-# def multiRun(numberOfruns):
-#     # running the simulation in parallel
-#     cpuNum = 48
-#     results = []
-#     batchNum = 0
-#     while numberOfruns > 0:
-#         if numberOfruns > cpuNum:
-#             numberOfruns = numberOfruns - cpuNum
-#             with multiprocessing.Pool() as pool:
-#                 # run the function in parallel on the input values
-#                 results = results + pool.map(run, range(batchNum*cpuNum, (batchNum+1)*cpuNum))
-#             batchNum = batchNum + 1
-#         else:
-#             with multiprocessing.Pool() as pool:
-#                 results = results + pool.map(run, range(batchNum*cpuNum, batchNum*cpuNum + numberOfruns))
-#             numberOfruns = 0
-#     return results
-
-# results = multiRun(1000)
-# defaultCollection.append(defaultNumber(results))
-# defaultBanks.append(defaultBank(results))
-# print("Low correlation Model Done")
-# ################################################################################## No correlation Model  
-# def run(iRun):
-#     np.random.seed(iRun+1000)
-#     # simulation and data collection
-#     simulationSteps = 500
-#     cMatrix = np.ones((100,100))*0.0
-#     np.fill_diagonal(cMatrix, 1)
-#     model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
-#                     leverageRatio = 20.0,                                     # leverage ratio upper bound for all banks
-#                     depositReserve = 0.2,                                     # capital reserve as a ratio of portfolio value
-#                     num_borrowing= 10,                                        # number of borrowing request per bank per step
-#                     sizeOfBorrowing = 1.0, concentrationParameter = con,                                      # size of borrowing as a ratio of equity capital
-#                     num_banks=100,                                            # number of banks in the system 
-#                     alpha = 0.5,                                              # portfolio recovery rate                           
-#                     beta = 0.9,                                               # interbank loan recovery rate
-#                     fedRate = 0.04,                                            # interest rate on borrowing   
-#                     portfolioReturnRate = 0.10,          
-#                     # return rate on portfolio
-#                     returnVolatiliy = 0.18,
-#                     returnCorrelation = cMatrix,
-#                     liquidityShockNum = 10,                                    # number of liquidity shocks per step      
-#                     shockSize = 0.02,                                          # size of the shock
-#                     shockDuration = [300, 300]) # duration of the shock
-                    
-#     model.datacollector.collect(model)
-#     for _ in range(simulationSteps):
-#         model.simulate()
-        
-#     agent_data = model.datacollector.get_agent_vars_dataframe()
-#     model_data = model.datacollector.get_model_vars_dataframe()
-#     return model_data, agent_data
-
-# def multiRun(numberOfruns):
-#     # running the simulation in parallel
-#     cpuNum = 48
-#     results = []
-#     batchNum = 0
-#     while numberOfruns > 0:
-#         if numberOfruns > cpuNum:
-#             numberOfruns = numberOfruns - cpuNum
-#             with multiprocessing.Pool() as pool:
-#                 # run the function in parallel on the input values
-#                 results = results + pool.map(run, range(batchNum*cpuNum, (batchNum+1)*cpuNum))
-#             batchNum = batchNum + 1
-#         else:
-#             with multiprocessing.Pool() as pool:
-#                 results = results + pool.map(run, range(batchNum*cpuNum, batchNum*cpuNum + numberOfruns))
-#             numberOfruns = 0
-#     return results
-
-# results = multiRun(1000)
-# defaultCollection.append(defaultNumber(results))
-# defaultBanks.append(defaultBank(results))
-# print("No correlation Model Done")
-# ################################################################################## Low borrow Model  
-# def run(iRun):
-#     np.random.seed(iRun+1000)
-#     # simulation and data collection
-#     simulationSteps = 500
-#     cMatrix = np.ones((100,100))*0.8
-#     np.fill_diagonal(cMatrix, 1)
-#     model = bankingSystem(banksFile="balanceSheetAnalysis/banksData_2022.csv", # csv file used to initialize the bank agents
-#                     leverageRatio = 20.0,                                     # leverage ratio upper bound for all banks
-#                     depositReserve = 0.2,                                     # capital reserve as a ratio of portfolio value
-#                     num_borrowing= 5,                                        # number of borrowing request per bank per step
-#                     sizeOfBorrowing = 1.0, concentrationParameter = con,                                      # size of borrowing as a ratio of equity capital
-#                     num_banks=100,                                            # number of banks in the system 
-#                     alpha = 0.5,                                              # portfolio recovery rate                           
-#                     beta = 0.9,                                               # interbank loan recovery rate
-#                     fedRate = 0.04,                                            # interest rate on borrowing   
-#                     portfolioReturnRate = 0.10,          
-#                     # return rate on portfolio
-#                     returnVolatiliy = 0.18,
-#                     returnCorrelation = cMatrix,
-#                     liquidityShockNum = 10,                                    # number of liquidity shocks per step      
-#                     shockSize = 0.02,                                          # size of the shock
-#                     shockDuration = [300, 300]) # duration of the shock
-                    
-#     model.datacollector.collect(model)
-#     for _ in range(simulationSteps):
-#         model.simulate()
-        
-#     agent_data = model.datacollector.get_agent_vars_dataframe()
-#     model_data = model.datacollector.get_model_vars_dataframe()
-#     return model_data, agent_data
-
-# def multiRun(numberOfruns):
-#     # running the simulation in parallel
-#     cpuNum = 48
-#     results = []
-#     batchNum = 0
-#     while numberOfruns > 0:
-#         if numberOfruns > cpuNum:
-#             numberOfruns = numberOfruns - cpuNum
-#             with multiprocessing.Pool() as pool:
-#                 # run the function in parallel on the input values
-#                 results = results + pool.map(run, range(batchNum*cpuNum, (batchNum+1)*cpuNum))
-#             batchNum = batchNum + 1
-#         else:
-#             with multiprocessing.Pool() as pool:
-#                 results = results + pool.map(run, range(batchNum*cpuNum, batchNum*cpuNum + numberOfruns))
-#             numberOfruns = 0
-#     return results
-
-# results = multiRun(1000)
-# defaultCollection.append(defaultNumber(results))
-# defaultBanks.append(defaultBank(results))
-# print("Low borrow Model Done")
-
-
-defaultCollection = np.array(defaultCollection)
-np.save("defaultCollection_noBorrow.npy", defaultCollection)
-
-defaultBanks = np.array(defaultBanks)
-np.save("defaultBanks_noBorrow.npy", defaultBanks)
+################################################################################## High Reserve Model  
+params2 = copy.deepcopy(params)
+params2["depositReserve"] = 0.4
+runAndWriteToFile(numberOfRuns, params2, "highReserve")
+print("High Reserve Model Done")
+################################################################################## Low Leverage Model  
+params3 = copy.deepcopy(params)
+params3["leverageRatio"] = 15.0
+runAndWriteToFile(numberOfRuns, params3, "lowLeverage") 
+print("Low Leverage Model Done")
+################################################################################## Low correlation Model  
+params4 = copy.deepcopy(params)
+params4["returnCorrelation"] = 0.4
+runAndWriteToFile(numberOfRuns, params4, "lowCorrelation")
+print("Low correlation Model Done")
+################################################################################## No correlation Model  
+params5 = copy.deepcopy(params)
+params5["returnCorrelation"] = 0.0
+runAndWriteToFile(numberOfRuns, params5, "noCorrelation")
+print("No correlation Model Done")
+################################################################################## Low borrow Model
+params6 = copy.deepcopy(params)
+params6["num_borrowing"] = 2 
+runAndWriteToFile(numberOfRuns, params6, "lowBorrow")
+print("Low borrow Model Done")
+################################################################################## No borrow Model
+params7 = copy.deepcopy(params)
+params7["num_borrowing"] = 0
+runAndWriteToFile(numberOfRuns, params7, "noBorrow")

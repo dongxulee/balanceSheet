@@ -88,24 +88,26 @@ class Bank(mesa.Agent):
     
 
 class bankingSystem(mesa.Model):
-    def __init__(self, banksFile, 
-                 leverageRatio, 
-                 depositReserve,
-                 num_borrowing,
-                 sizeOfBorrowing,
-                 num_banks, 
-                 alpha = 0.99,
-                 beta = 0.99,
-                 concentrationParameter = None,
-                 fedRate = 0., 
-                 portfolioReturnRate = 0., 
-                 returnVolatiliy = 0.,
-                 returnCorrelation = 0.,
-                 liquidityShockNum = 0,
-                 shockSize = 0.0,
-                 shockDuration=[-1,-1]):
-        
-        # interest rate
+    def __init__(self, params):
+        banksFile = params["banksFile"]
+        leverageRatio = params["leverageRatio"]
+        depositReserve = params["depositReserve"]
+        num_borrowing = params["num_borrowing"]
+        sizeOfBorrowing = params["sizeOfBorrowing"]
+        num_banks = params["num_banks"]
+        alpha = params["alpha"]
+        beta = params["beta"]
+        concentrationParameter = params["concentrationParameter"]
+        fedRate = params["fedRate"]
+        portfolioReturnRate = params["portfolioReturnRate"]
+        returnVolatiliy = params["returnVolatiliy"]
+        returnCorrelation = params["returnCorrelation"]
+        liquidityShockNum = params["liquidityShockNum"]
+        shockSize = params["shockSize"]
+        shockDuration = params["shockDuration"]
+
+
+        # interest rate  
         self.fedRate = (fedRate+1)**(1/252) - 1
         # portfolio return rate
         self.portfolioReturnRate = (portfolioReturnRate+1)**(1/252) - 1
@@ -142,7 +144,7 @@ class bankingSystem(mesa.Model):
             self.trustMatrix = self.concentrationParameter / (self.N - 1)
         else:
             self.concentrationParameter = concentrationParameter
-            self.trustMatrix = self.concentrationParameter / (self.N - 1) / self.num_borrowing
+            self.trustMatrix = self.concentrationParameter / self.concentrationParameter.sum(axis=1, keepdims=True)
         # liability matrix 
         self.L = np.zeros((self.N,self.N))
         # asset matrix
@@ -151,7 +153,13 @@ class bankingSystem(mesa.Model):
         self.d = banksData["assets"].values.reshape(self.N,1) * 0.8
         # create a schedule for banks
         self.schedule = mesa.time.RandomActivation(self)
-    
+        
+        # correlated shocks
+        # set the bank's equity to drop
+        numOfShocks = shockDuration[1] - shockDuration[0] + 1
+        R = shockSize * self.Cholesky @ np.abs(np.random.randn(self.N,1))
+        self.r = np.power(1 + R, 1.0/numOfShocks) - 1 
+        
         # create banks and put them in schedule
         for i in range(self.N):
             a = Bank(i, self)
@@ -207,7 +215,7 @@ class bankingSystem(mesa.Model):
         # liquidity shock to banks portfolio
         if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
             # set the bank's equity to drop
-            self.e -= (self.e - self.d * self.depositReserve)*(self.shockSize + 5*self.Cholesky @ np.random.randn(self.N,1))
+            self.e -= (self.e - self.d * self.depositReserve) * self.r
 
     def simulate(self):
         self.schedule.step()
