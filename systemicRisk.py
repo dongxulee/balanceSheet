@@ -24,7 +24,7 @@ params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
                  "shockSize" : 5,       # size of the shock
                  "shockDuration":[300,300] # time of the shock, [-1,-1] sugguests no shock
                  } 
-numberOfRuns = 1000
+numberOfRuns = 2000
 
 # collect the default statistics
 def defaultNumber(results):
@@ -65,8 +65,8 @@ print("High Reserve Model Done")
 ################################################################################## Low Leverage Model  
 params3 = copy.deepcopy(params)
 params3["leverageRatio"] = 15.0
-runAndWriteToFile(numberOfRuns, params3, "lowLeverage") 
-print("Low Leverage Model Done")
+runAndWriteToFile(numberOfRuns, params3, "highLeverage") 
+print("High Leverage Model Done")
 ################################################################################## Low correlation Model  
 params4 = copy.deepcopy(params)
 params4["returnCorrelation"] = 0.4
@@ -86,3 +86,24 @@ print("Low borrow Model Done")
 params7 = copy.deepcopy(params)
 params7["num_borrowing"] = 0
 runAndWriteToFile(numberOfRuns, params7, "noBorrow")
+print("No borrow Model Done")
+
+################################################################################## Time Interval Model
+params8 = copy.deepcopy(params)
+params8["shockDuration"] = [300,301]
+runAndWriteToFile(numberOfRuns, params8, "301")
+print("301 Model Done")
+
+params9 = copy.deepcopy(params)
+params9["shockDuration"] = [300,302]
+runAndWriteToFile(numberOfRuns, params9, "302")
+print("302 Model Done")
+
+params10 = copy.deepcopy(params)
+params10["shockDuration"] = [300,303]
+runAndWriteToFile(numberOfRuns, params10, "303")
+print("303 Model Done")
+
+params11 = copy.deepcopy(params)
+params11["shockDuration"] = [300,304]
+runAndWriteToFile(numberOfRuns, params11, "304")

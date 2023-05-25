@@ -17,7 +17,7 @@ class Bank(mesa.Agent):
         # leverage ratio
         self.leverage = 0.        
         # if a bank is solvent
-        self.default = False      # change at clearingDebt()
+        self.default = 0      # change at clearingDebt()
     
     def updateBlanceSheet(self):
         # equity = asset - liability
@@ -69,7 +69,7 @@ class Bank(mesa.Agent):
             self.borrowing = 0.
             self.leverage = 0.
             self.equity = 0.
-            self.default = True 
+            self.default = 1 
         else:
             self.lending = 0.    
             self.borrowing = 0.      
@@ -83,7 +83,7 @@ class Bank(mesa.Agent):
                 self.leverage = self.model.leverageRatio
         
     def step(self):
-        if not self.default:
+        if self.default == 0:
             self.borrowRequest()
     
 
