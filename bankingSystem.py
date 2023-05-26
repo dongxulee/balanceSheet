@@ -202,14 +202,6 @@ class bankingSystem(mesa.Model):
         # Return on the portfolio:
         self.e += (self.e - self.d*self.depositReserve) * (self.portfolioReturnRate + (self.Cholesky @ np.random.randn(self.N,1)))
            
-    def liquidityShock(self):
-        # liquidity shock to banks portfolio
-        if self.schedule.time >= self.shockDuration[0] and self.schedule.time <= self.shockDuration[1]:
-            if self.liquidityShockNum > 0:
-                exposedBank = np.random.choice(self.N, self.liquidityShockNum,replace=False)
-                # set the bank's equity to drop
-                self.e[exposedBank] -= (self.e[exposedBank] - 
-                                        self.d[exposedBank] * self.depositReserve)*self.shockSize
     
     def correlatedShock(self):
         # liquidity shock to banks portfolio
@@ -220,7 +212,6 @@ class bankingSystem(mesa.Model):
     def simulate(self):
         self.schedule.step()
         self.returnOnPortfolio()
-        #self.liquidityShock()
         self.correlatedShock()
         self.datacollector.collect(self)
         self.clearingDebt()
