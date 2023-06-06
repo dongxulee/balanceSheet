@@ -157,7 +157,7 @@ class bankingSystem(mesa.Model):
         # correlated shocks
         # set the bank's equity to drop
         numOfShocks = shockDuration[1] - shockDuration[0] + 1
-        R = shockSize * self.Cholesky @ np.abs(np.random.randn(self.N,1))
+        R = np.abs(shockSize * self.Cholesky @ np.random.randn(self.N,1))
         self.r = np.power(1 + R, 1.0/numOfShocks) - 1 
         
         # create banks and put them in schedule
