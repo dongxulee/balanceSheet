@@ -19,9 +19,8 @@ params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
                  "fedRate" : 0.04, # interest rate on borrowing   
                  "portfolioReturnRate" : 0.10, 
                  "returnVolatiliy" : 0.18,
-                 "returnCorrelation" : 0.8,
-                 "liquidityShockNum" : 0,  # number of liquidity shocks per step (not correlated shocks)
-                 "shockSize" : 5,       # size of the shock
+                 "returnCorrelation" : 0.9,
+                 "shockSize" : 10,       # size of the shock
                  "shockDuration":[300,300] # time of the shock, [-1,-1] sugguests no shock
                  } 
 numberOfRuns = 2000
@@ -69,7 +68,7 @@ runAndWriteToFile(numberOfRuns, params3, "highLeverage")
 print("High Leverage Model Done")
 ################################################################################## Low correlation Model  
 params4 = copy.deepcopy(params)
-params4["returnCorrelation"] = 0.4
+params4["returnCorrelation"] = 0.7
 runAndWriteToFile(numberOfRuns, params4, "lowCorrelation")
 print("Low correlation Model Done")
 ################################################################################## No correlation Model  

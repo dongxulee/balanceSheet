@@ -102,7 +102,6 @@ class bankingSystem(mesa.Model):
         portfolioReturnRate = params["portfolioReturnRate"]
         returnVolatiliy = params["returnVolatiliy"]
         returnCorrelation = params["returnCorrelation"]
-        liquidityShockNum = params["liquidityShockNum"]
         shockSize = params["shockSize"]
         shockDuration = params["shockDuration"]
 
@@ -118,7 +117,6 @@ class bankingSystem(mesa.Model):
         np.fill_diagonal(cMatrix, 1)
         self.Cholesky = np.linalg.cholesky(cMatrix * self.returnVolatiliy**2)
         # number of liquidity shocks
-        self.liquidityShockNum = liquidityShockNum 
         # size of the shock
         self.shockSize = shockSize
         # time of the shock
