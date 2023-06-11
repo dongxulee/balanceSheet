@@ -88,7 +88,7 @@ class Bank(mesa.Agent):
     
 
 class bankingSystem(mesa.Model):
-    def __init__(self, params):
+    def __init__(self, params, seed = None):
         banksFile = params["banksFile"]
         leverageRatio = params["leverageRatio"]
         depositReserve = params["depositReserve"]

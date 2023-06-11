@@ -5,11 +5,11 @@ from bankingSystem import *
 import multiprocessing
 from functools import partial
 
+
 def run(iRun, params):
-    np.random.seed(iRun + np.random.randint(2**32 - 1))
     # simulation and data collection
     simulationSteps = 500
-    model = bankingSystem(params)
+    model = bankingSystem(params, seed = iRun)
     model.datacollector.collect(model)
     for _ in range(simulationSteps):
         model.simulate()
@@ -101,7 +101,7 @@ def netWorkGraph2(matrix, model, printLabel=True):
     plt.axis('off')
     plt.show()
 
-def simulationMonitor(agent_data, model_data, simulationSteps, plot=True):
+def simulationMonitor(agent_data, model_data, simulationSteps):
     numberOfDefault = [agent_data.xs(i, level="Step")["Default"].sum() for i in range(simulationSteps)]
     averageLeverage = [agent_data.xs(i, level="Step")["Leverage"].sum() / (100 - agent_data.xs(i, level="Step")["Default"].sum()) for i in range(simulationSteps)]
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
@@ -116,7 +116,23 @@ def simulationMonitor(agent_data, model_data, simulationSteps, plot=True):
     sizeOfBorrowing = np.array([[model_data["Liability Matrix"][i].sum() for i in range(simulationSteps)]])
     ax4.plot(np.array(sizeOfBorrowing).mean(axis=0))
     ax4.set_title("Single simulation Size of borrowing")
-
+    
+def simulationMonitorCompare(agent_datas, model_datas, simulationSteps):
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+    fig.set_size_inches(40, 20)
+    ax1.set_title("Simulation average leverage")
+    ax2.set_title("Simulation Aggregated Asset Values")
+    ax3.set_title("Simulation Size of borrowing")
+    for i, (agent_data, model_data) in enumerate(zip(agent_datas, model_datas)):
+        numberOfDefault, averageLeverage, portfollioValue, sizeOfBorrowing = dataCollect(agent_data, model_data, simulationSteps)
+        ax1.plot(range(250,350), averageLeverage[250:350], label="Number of Shocks: " + str(i+1))
+        ax2.plot(range(250,350), portfollioValue[250:350], label="Number of Shocks: " + str(i+1))
+        ax3.plot(range(250,350),np.array(sizeOfBorrowing).mean(axis=0)[250:350], label="Number of Shocks: " + str(i+1))    
+    ax1.legend()
+    ax2.legend()
+    ax3.legend()
+        
+ 
         
 def dataCollect(agent_data, model_data, simulationSteps):
     numberOfDefault = [agent_data.xs(i, level="Step")["Default"].sum() for i in range(simulationSteps)]

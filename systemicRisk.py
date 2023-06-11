@@ -49,8 +49,8 @@ def runAndWriteToFile(numberOfRuns, params, fileName):
     defaultBanks.append(defaultBank(results))
     defaultBanks = np.array(defaultBanks)
     
-    np.save("defaultSimulation/defaultCollection_" + fileName + ".npy", defaultCollection)
-    np.save("defaultSimulation/defaultBanks_" + fileName + ".npy", defaultBanks)
+    np.save("defaultSimulation1/defaultCollection_" + fileName + ".npy", defaultCollection)
+    np.save("defaultSimulation1/defaultBanks_" + fileName + ".npy", defaultBanks)
     
 ################################################################################## Base Model  
 params1 = copy.deepcopy(params)
