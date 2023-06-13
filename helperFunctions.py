@@ -118,25 +118,22 @@ def simulationMonitor(agent_data, model_data, simulationSteps):
     ax4.set_title("Single simulation Size of borrowing")
     
 def simulationMonitorCompare(agent_datas, model_datas, simulationSteps):
-    fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
     fig.set_size_inches(40, 20)
     ax1.set_title("Mean Leverage Ratio")
     ax2.set_title("Aggregated Asset Values")
     ax3.set_title("Aggregate Size of Borrowing")
-    ax4.set_title("Number of Default Banks")
     for i, (agent_data, model_data) in enumerate(zip(agent_datas, model_datas)):
         numberOfDefault, averageLeverage, portfollioValue, sizeOfBorrowing = dataCollect(agent_data, model_data, simulationSteps)
-        ax1.plot(range(290,310), averageLeverage[290:310], "-o", label="Number of Shocks: " + str(i+1))
-        ax1.set_xticks(range(290,310))
-        ax2.plot(range(290,310), portfollioValue[290:310], "-o", label="Number of Shocks: " + str(i+1))
-        ax2.set_xticks(range(290,310))
-        ax3.plot(range(290,310),np.array(sizeOfBorrowing).mean(axis=0)[290:310], "-o", label="Number of Shocks: " + str(i+1))    
-        ax3.set_xticks(range(290,310))
-        ax4.plot(range(290,310), numberOfDefault, "-o", label="Number of Shocks: " + str(i+1))
+        ax1.plot(range(295,305), averageLeverage[295:305], "-o", label="Number of Shocks: " + str(i+1))
+        ax1.set_xticks(range(295,305))
+        ax2.plot(range(295,305), portfollioValue[295:305], "-o", label="Number of Shocks: " + str(i+1))
+        ax2.set_xticks(range(295,305))
+        ax3.plot(range(295,305),np.array(sizeOfBorrowing).mean(axis=0)[295:305], "-o", label="Number of Shocks: " + str(i+1))    
+        ax3.set_xticks(range(295,305))
     ax1.legend()
     ax2.legend()
     ax3.legend()
-    ax4.legend()
         
  
         
