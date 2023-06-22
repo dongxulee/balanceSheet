@@ -10,7 +10,7 @@ bankFile = "balanceSheetAnalysis/banksData_2022.csv"
 params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
                  "leverageRatio": 10.0, # leverage ratio upper bound for all banks
                  "depositReserve": 0.2, # capital reserve as a ratio of deposit
-                 "num_borrowing": 5, # number of borrowing request per bank per step
+                 "num_borrowing": 10, # number of borrowing request per bank per step
                  "sizeOfBorrowing": 1.0, # size of borrowing as a ratio of equity capital
                  "concentrationParameter": np.load("concentrationParams.npy"), # concentration parameter for the dirichlet distribution
                  "num_banks": 100, # number of banks in the system 
@@ -20,10 +20,10 @@ params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
                  "portfolioReturnRate" : 0.10, 
                  "returnVolatiliy" : 0.18,
                  "returnCorrelation" : 0.9,
-                 "shockSize" : 10,       # size of the shock
+                 "shockSize" : 5,       # size of the shock
                  "shockDuration":[300,300] # time of the shock, [-1,-1] sugguests no shock
                  } 
-numberOfRuns = 2000
+numberOfRuns = 500
 
 # collect the default statistics
 def defaultNumber(results):
