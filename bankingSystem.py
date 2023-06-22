@@ -209,8 +209,8 @@ class bankingSystem(mesa.Model):
 
     def simulate(self):
         self.schedule.step()
+        self.datacollector.collect(self)
         self.returnOnPortfolio()
         self.correlatedShock()
-        self.datacollector.collect(self)
         self.clearingDebt()
         self.updateTrustMatrix()

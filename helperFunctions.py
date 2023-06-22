@@ -9,7 +9,7 @@ from functools import partial
 def run(iRun, params):
     # simulation and data collection
     simulationSteps = 500
-    model = bankingSystem(params, seed = iRun)
+    model = bankingSystem(params)
     model.datacollector.collect(model)
     for _ in range(simulationSteps):
         model.simulate()
@@ -119,18 +119,18 @@ def simulationMonitor(agent_data, model_data, simulationSteps):
     
 def simulationMonitorCompare(agent_datas, model_datas, simulationSteps):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
-    fig.set_size_inches(40, 20)
-    ax1.set_title("Mean Leverage Ratio")
-    ax2.set_title("Aggregated Asset Values")
-    ax3.set_title("Aggregate Size of Borrowing")
+    symbols = ["o-", "^-", "*-"]
     for i, (agent_data, model_data) in enumerate(zip(agent_datas, model_datas)):
         numberOfDefault, averageLeverage, portfollioValue, sizeOfBorrowing = dataCollect(agent_data, model_data, simulationSteps)
-        ax1.plot(range(295,305), averageLeverage[295:305], "-o", label="Number of Shocks: " + str(i+1))
-        ax1.set_xticks(range(295,305))
-        ax2.plot(range(295,305), portfollioValue[295:305], "-o", label="Number of Shocks: " + str(i+1))
-        ax2.set_xticks(range(295,305))
-        ax3.plot(range(295,305),np.array(sizeOfBorrowing).mean(axis=0)[295:305], "-o", label="Number of Shocks: " + str(i+1))    
-        ax3.set_xticks(range(295,305))
+        ax1.plot(range(295,306), averageLeverage[295:306], symbols[i],markersize = 15, label="Number of Shocks: " + str(i+1))
+        ax1.set_xticks(range(295,306))
+        ax1.set_ylabel("Mean Leverage Ratio")
+        ax2.plot(range(295,306), portfollioValue[295:306], symbols[i],markersize = 15, label="Number of Shocks: " + str(i+1))
+        ax2.set_xticks(range(295,306))
+        ax2.set_ylabel("Aggregated Asset Values")
+        ax3.plot(range(295,306),np.array(sizeOfBorrowing).mean(axis=0)[295:306], symbols[i],markersize = 15, label="Number of Shocks: " + str(i+1))    
+        ax3.set_xticks(range(295,306))
+        ax3.set_ylabel("Aggregate Size of Borrowing")
     ax1.legend()
     ax2.legend()
     ax3.legend()
