@@ -13,7 +13,7 @@ params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
                  "num_borrowing": 5, # number of borrowing request per bank per step
                  "sizeOfBorrowing": 1.0, # size of borrowing as a ratio of equity capital
                  "concentrationParameter": np.load("concentrationParams.npy"), # concentration parameter for the dirichlet distribution
-                 "num_banks": 100, # number of banks in the system 
+                 "num_banks": 50, # number of banks in the system 
                  "alpha" : 0.5,    # portfolio recovery rate          
                  "beta" : 0.9,     # interbank loan recovery rate
                  "fedRate" : 0.04, # interest rate on borrowing   
@@ -68,7 +68,7 @@ def runAndWriteToFile(numberOfRuns, params, fileName):
 #print("High Leverage Model Done")
 ################################################################################## Low correlation Model  
 params4 = copy.deepcopy(params)
-params4["returnCorrelation"] = 0.6
+params4["returnCorrelation"] = 0.7
 runAndWriteToFile(numberOfRuns, params4, "lowCorrelation")
 print("Low correlation Model Done")
 ################################################################################## No correlation Model  

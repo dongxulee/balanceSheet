@@ -113,7 +113,7 @@ class bankingSystem(mesa.Model):
         # portfolio return volatility
         self.returnVolatiliy = returnVolatiliy/np.sqrt(252)
         # return correlation matrix
-        cMatrix = np.ones((100,100))*returnCorrelation
+        cMatrix = np.ones((num_banks,num_banks))*returnCorrelation
         np.fill_diagonal(cMatrix, 1)
         self.Cholesky = np.linalg.cholesky(cMatrix * self.returnVolatiliy**2)
         # number of liquidity shocks

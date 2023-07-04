@@ -103,7 +103,7 @@ def netWorkGraph2(matrix, model, printLabel=True):
 
 def simulationMonitor(agent_data, model_data, simulationSteps):
     numberOfDefault = [agent_data.xs(i, level="Step")["Default"].sum() for i in range(simulationSteps)]
-    averageLeverage = [agent_data.xs(i, level="Step")["Leverage"].sum() / (100 - agent_data.xs(i, level="Step")["Default"].sum()) for i in range(simulationSteps)]
+    averageLeverage = [agent_data.xs(i, level="Step")["Leverage"].sum() / (50 - agent_data.xs(i, level="Step")["Default"].sum()) for i in range(simulationSteps)]
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
     fig.set_size_inches(40, 20)
     ax1.set_title("Single simulation average leverage")
