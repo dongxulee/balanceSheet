@@ -12,7 +12,7 @@ params = {"banksFile" : bankFile, # csv file used to initialize the bank agents
                  "depositReserve": 0.2, # capital reserve as a ratio of deposit
                  "num_borrowing": 5, # number of borrowing request per bank per step
                  "sizeOfBorrowing": 1.0, # size of borrowing as a ratio of equity capital
-                 "concentrationParameter": np.load("concentrationParams.npy"), # concentration parameter for the dirichlet distribution
+                 "concentrationParameter": None, # np.load("concentrationParams.npy"), # concentration parameter for the dirichlet distribution
                  "num_banks": 50, # number of banks in the system 
                  "alpha" : 0.5,    # portfolio recovery rate          
                  "beta" : 0.9,     # interbank loan recovery rate
