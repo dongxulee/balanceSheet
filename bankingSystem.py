@@ -127,7 +127,7 @@ class bankingSystem(mesa.Model):
         self.beta = beta
         
         # read in banks equity capital
-        banksData = pd.read_csv(banksFile).iloc[:num_banks,:]
+        banksData = pd.read_csv(banksFile).head(num_banks)
         self.banks = banksData["bank"]
         self.N = num_banks
         self.leverageRatio = leverageRatio
@@ -148,7 +148,7 @@ class bankingSystem(mesa.Model):
         # asset matrix
         self.e = (banksData["assets"].values).reshape(self.N,1)
         # deposit matrix
-        self.d = banksData["assets"].values.reshape(self.N,1) * 0.8
+        self.d = banksData["deposit"].values.reshape(self.N,1) * 0.8
         # create a schedule for banks
         self.schedule = mesa.time.RandomActivation(self)
         
